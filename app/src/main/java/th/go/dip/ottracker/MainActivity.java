@@ -2,12 +2,14 @@ package th.go.dip.ottracker;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -31,9 +33,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Configure WebViewAssetLoader for safe, CORS-free local asset loading via https://
+        // Map root "/" directly to android assets directory
+        // This ensures both /index.html and /assets/... resolve perfectly without 404
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+            .setDomain("appassets.androidplatform.net")
+            .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
             .build();
 
         // Register File Chooser for PDF / Backup selection
@@ -60,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
         );
 
         webView = new WebView(this);
+        webView.setBackgroundColor(Color.WHITE);
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();
@@ -85,10 +90,16 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                Log.e(TAG, "Web error: " + error.getDescription() + " url: " + request.getUrl());
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
                 if (url.startsWith("https://appassets.androidplatform.net/") || 
-                    url.startsWith("file:///android_asset/") || 
+                    url.startsWith("file://") || 
                     url.startsWith("blob:") || 
                     url.startsWith("data:")) {
                     return false;
@@ -105,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                Log.d(TAG, consoleMessage.message() + " -- From line "
+                Log.d(TAG, consoleMessage.message() + " -- Line "
                         + consoleMessage.lineNumber() + " of "
                         + consoleMessage.sourceId());
                 return true;
@@ -143,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Load Offline Assets via virtual https origin to enable ES Modules & CORS bypass
-        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
+        // Load index.html directly from root of virtual origin https://appassets.androidplatform.net/index.html
+        webView.loadUrl("https://appassets.androidplatform.net/index.html");
     }
 }
