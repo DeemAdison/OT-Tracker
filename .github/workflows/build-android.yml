@@ -23,22 +23,17 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Install Gradle 8.2
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
 
       - name: Build APK with Gradle
-        run: |
-          chmod +x gradlew 2>/dev/null || true
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle assembleDebug --stacktrace
-          fi
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
@@ -56,8 +51,6 @@ jobs:
           body: |
             ### 📱 OT Tracker สำหรับ Android (.apk)
             - ไฟล์ติดตั้ง APK พร้อมใช้งานสำหรับมือถือ Android
-            - รองรับ Android 7.0 (API 24) ถึง Android 14+ (API 34)
-            - ใช้งานได้แบบออฟไลน์ 100%
             - สามารถดาวน์โหลดไฟล์ `app-debug.apk` ด้านล่างไปติดตั้งบนมือถือได้ทันที
           files: app/build/outputs/apk/debug/*.apk
         env:
