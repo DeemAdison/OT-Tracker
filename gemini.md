@@ -475,6 +475,14 @@
       1. ปรับปรุง `src-tauri/Cargo.toml`: อัปเดต `tauri` เป็น `"2.12.1"`, `tauri-plugin-sql` เป็น `"2.5.0"`, และ `tauri-build` เป็น `"2.7"` ตรงตามที่ระบุใน npm และ crates.io
       2. ปรับปรุง `package.json`: ระบุเวอร์ชัน `@tauri-apps/api`, `@tauri-apps/plugin-sql`, และ `@tauri-apps/cli` ให้ตรงกัน
       3. ปรับปรุง `.github/workflows/build-windows.yml`: เพิ่มอาร์กิวเมนต์ `args: --ignore-version-mismatches` ในคำสั่ง `tauri-action` เพื่อเป็นระบบป้องกันสองชั้น ป้องกันไม่ให้การตรวจสอบเวอร์ชันบล็อกการบิลด์ในอนาคต
+  - **2026-10-07 (แก้ไขข้อผิดพลาด Resource not accessible by integration ในการสร้าง GitHub Release):**
+    - **สาเหตุของปัญหา:** Workflow `build-tauri-windows` บน GitHub Actions คอมไพล์ตัวติดตั้งเสร็จแล้ว แต่เกิดข้อผิดพลาดขณะพยายามสร้าง GitHub Release:
+      `Error: Resource not accessible by integration - https://docs.github.com/rest/releases/releases#create-a-release`
+      เนื่องจาก GitHub มีการตั้งค่าความปลอดภัยเริ่มต้นให้ `GITHUB_TOKEN` มีสิทธิ์เพียงอ่านอย่างเดียว (Read-only) หากไม่ประกาศ `permissions: contents: write` ในไฟล์ Workflow ตัว Action จะไม่มีสิทธิ์สร้าง Release หรืออัปโหลดไฟล์แนบเข้า Release ได้
+    - **การแก้ไข:**
+      1. เพิ่ม `permissions: contents: write` ทั้งในระดับ Top-level และ Job-level ใน `.github/workflows/build-windows.yml`
+      2. เพิ่ม `permissions: contents: write` ใน `.github/workflows/build-android.yml` เพื่อให้รองรับการสร้าง Release และอัปโหลดไฟล์ Artifact ได้อย่างสมบูรณ์
+      3. ให้คำแนะนำผู้ใช้ในการตรวจสอบการตั้งค่า Workflow permissions บนหน้าเว็บ GitHub (Settings > Actions > General > Workflow permissions > Read and write permissions)
 
 ---
 
