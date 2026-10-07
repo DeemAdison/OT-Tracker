@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Web Frontend
+        run: npm run build
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Gradle 8.2
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
+      - name: Prepare Assets for Android App
+        run: |
+          mkdir -p android-app/app/src/main/assets
+          rm -rf android-app/app/src/main/assets/*
+          cp -r dist/* android-app/app/src/main/assets/
+
+      - name: Build Android APK
+        working-directory: android-app
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OT_Tracker_Android_APK
+          path: android-app/app/build/outputs/apk/debug/*.apk
