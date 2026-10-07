@@ -18,7 +18,7 @@
 ---
 
 ## 🚀 วิธีดาวน์โหลดและติดตั้งไฟล์ APK
-1. ไปที่แท็บ **[Releases](https://github.com/DeemAdison/OT-Tracker/releases)** หรือแท็บ **[Actions](https://github.com/DeemAdison/OT-Tracker/actions)**
+1. ไปที่แท็บ **Releases** หรือแท็บ **Actions** ในหน้า GitHub Repository ของคุณ
 2. ดาวน์โหลดไฟล์ `app-debug.apk` (หรือ `OT_Tracker_Android_APK`)
 3. เปิดไฟล์บนมือถือ Android แล้วกดยืนยันการติดตั้ง (**Install**)
 

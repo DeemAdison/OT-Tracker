@@ -393,8 +393,8 @@
           - **ปรับปรุง `src/services/exportService.js`:** เพิ่ม Native Android WebView Bridge (`window.Android.saveBase64File`) บันทึกไฟล์ Excel และ Word ตรงลง Downloads ของ Android
           - **หน้าต่างการตั้งค่า (`SettingsModal.vue`):** เพิ่มการ์ดและคำแนะนำการติดตั้งสำหรับ Android ควบคู่กับ macOS และ Windows
           - **คู่มือภาษาไทย (`วิธีใช้งานบนมือถือ_Android.txt`):** สรุปขั้นตอนการติดตั้งและใช้งานบนโทรศัพท์มือถืออย่างละเอียด
-          - **จัดเตรียม Dedicated CI/CD สำหรับ Repo แยก (`DeemAdison/OT-Tracker`):**
-            - ผู้ใช้ได้แยกโฟลเดอร์ `android-app` ไปสร้างเป็น Git Repository ใหม่บน GitHub (`DeemAdison/OT-Tracker`)
+          - **จัดเตรียม Dedicated CI/CD สำหรับ Repo แยกของ Android (`OT-Tracker`):**
+            - สามารถแยกโฟลเดอร์ `android-app` ไปสร้างเป็น Git Repository ใหม่บน GitHub ได้อย่างอิสระ
             - ได้สร้างไฟล์ `android-app/.github/workflows/build-apk.yml` โดยกำหนด root build script ตรงสำหรับ repo เดี่ยว (ติดตั้ง Java 17, Android SDK 34, รัน `gradle assembleDebug`, และอัปโหลด Artifact พร้อมทั้งสร้าง GitHub Release แนบไฟล์ `.apk` อัตโนมัติ)
             - สร้าง `android-app/README.md` อธิบายฟีเจอร์และวิธีดาวน์โหลดติดตั้ง `.apk` สำหรับหน้าแรกของ Repo บน GitHub
             - แนะนำการสร้าง Workflow ผ่าน Web UI บนหน้าแท็บ Actions (`set up a workflow yourself`) โดยตรงเพื่อให้บิลด์ไฟล์ APK สำเร็จทันที
@@ -442,6 +442,20 @@
       - มีคู่มือการติดตั้งและใช้งานครบทั้ง macOS (.pkg, .zip), Windows (.exe, .zip), Android (.apk, PWA), และคู่มือสำหรับนักพัฒนา (Developer Guide)
       - มีแผนภาพโครงสร้างโปรเจกต์และข้อกำหนดด้านความเป็นส่วนตัว (Privacy-First 100% Offline)
     - **4. จัดเตรียมคำแนะนำ Git Commands สำหรับผู้ใช้นำขึ้น GitHub อย่างราบรื่น**
+  - **2026-10-07 (ลบไฟล์ที่ไม่ได้ใช้งานและถอดข้อมูลระบุตัวบุคคลออกทั้งหมด 100% - Privacy & Clean-up):**
+    - **1. ลบไฟล์ตัวอย่างที่ไม่ได้ใช้งานและมีข้อมูลระบุตัวบุคคลออกจากโปรเจกต์:**
+      - ลบไฟล์ `HR_RP_003_TimeToWork.pdf` (ไฟล์ตัวอย่างเดิมที่มีชื่อ-สกุลจริงของผู้ใช้)
+      - ลบไฟล์ `หลักฐานการเบิกจ่าย_OT_นายอดิศร_ละลี.xlsx`
+      - ลบไฟล์ `รายงานผลการปฏิบัติงาน_OT_นายอดิศร_ละลี.docx`
+      - ลบโฟลเดอร์ทดสอบ `scratch/` และสคริปต์ซ้ำซ้อน `Unlock-Open-App.command`
+    - **2. ทำความสะอาดเทมเพลตและโค้ดภายใน (100% Sanitization):**
+      - แก้ไขไฟล์เทมเพลต Word `public/templates/template.docx` โดยนำชื่อจริงออกและแทนที่ด้วย Placeholder กลาง `( ชื่อ-สกุล ผู้ปฏิบัติงาน )`
+      - สร้าง Base64 ของเทมเพลต Word ใหม่ที่สะอาดลงใน `src/services/templateAssets.js`
+      - ปรับปรุงคอมเมนต์ตัวอย่างใน `src/services/pdfParser.js` เป็นตัวอย่างกลาง
+      - ปรับปรุงลิงก์ใน `android-app/README.md` เป็นลิงก์กลาง
+    - **3. คอมไพล์และอัปเดตไฟล์ติดตั้งใหม่ทั้งหมด:**
+      - รัน `npm run build` และคอมไพล์แพ็กเกจ macOS (`.pkg`, `.zip`) และ Windows (`.exe`, `.zip`) ใหม่ทั้งหมด
+      - ตรวจสอบผ่านคำสั่งค้นหาทั่วทั้ง Repository ยืนยันว่าไม่มีชื่อ-สกุลจริงหลงเหลืออยู่เลยแม้แต่จุดเดียว (Zero Trace)
 
 ---
 

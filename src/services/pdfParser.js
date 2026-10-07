@@ -90,7 +90,7 @@ function analyzeParsedLines(lines) {
       }
     }
 
-    // Example: "นายอดิศร ละลี นักวิชาการพาณิชย์ ระดับไม่มีระดับตำแหน่ง กรมทรัพย์สินทางปัญญา"
+    // Example: "นายสมชาย ใจดี นักวิชาการพาณิชย์ ระดับไม่มีระดับตำแหน่ง กรมทรัพย์สินทางปัญญา"
     if (line.includes('นาย') || line.includes('นาง') || line.includes('นางสาว')) {
       const nameMatch = line.match(/(นาย|นาง|นางสาว)\s*([^\s]+)\s+([^\s]+)/);
       if (nameMatch) {
