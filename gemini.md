@@ -456,6 +456,15 @@
     - **3. คอมไพล์และอัปเดตไฟล์ติดตั้งใหม่ทั้งหมด:**
       - รัน `npm run build` และคอมไพล์แพ็กเกจ macOS (`.pkg`, `.zip`) และ Windows (`.exe`, `.zip`) ใหม่ทั้งหมด
       - ตรวจสอบผ่านคำสั่งค้นหาทั่วทั้ง Repository ยืนยันว่าไม่มีชื่อ-สกุลจริงหลงเหลืออยู่เลยแม้แต่จุดเดียว (Zero Trace)
+  - **2026-10-07 (แก้ไขข้อผิดพลาด Build Windows Installer with Tauri บน GitHub Actions):**
+    - **สาเหตุของปัญหา:** การรัน Workflow `build-tauri-windows` (`.github/workflows/build-windows.yml`) บน GitHub Actions ล้มเหลวที่คำสั่ง `cargo metadata` ด้วยข้อผิดพลาด:
+      `can't find library 'ot_tracker_lib', rename file to 'src/lib.rs' or specify lib.path`
+      เนื่องจากใน `src-tauri/Cargo.toml` มีการกำหนดเป้าหมาย `[lib]` (สำหรับ Tauri v2) แต่ในโฟลเดอร์ `src-tauri/src/` มีเพียง `main.rs` โดยไม่มีไฟล์ `lib.rs`
+    - **การแก้ไข:**
+      1. สร้างไฟล์ `src-tauri/src/lib.rs` พร้อมฟังก์ชัน `pub fn run()` สำหรับเริ่มต้นการทำงานของ Tauri Engine และฐานข้อมูล SQLite
+      2. ปรับปรุง `src-tauri/src/main.rs` ให้เรียกใช้งาน `ot_tracker_lib::run()` ตามสถาปัตยกรรมมาตรฐานของ Tauri v2
+      3. ปรับปรุง `src-tauri/Cargo.toml` โดยระบุ `path = "src/lib.rs"` ใต้ `[lib]` และระบุ `[[bin]]` ชี้ไปที่ `path = "src/main.rs"` อย่างชัดเจน
+      4. ระบุรายการพาธไอคอน `bundle.icon` ใน `src-tauri/tauri.conf.json` ให้ครบถ้วน รองรับการคอมไพล์ตัวติดตั้ง `.exe` (NSIS) และ `.msi` (WiX) บน GitHub Actions 100%
 
 ---
 
