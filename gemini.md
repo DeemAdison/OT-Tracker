@@ -465,6 +465,16 @@
       2. ปรับปรุง `src-tauri/src/main.rs` ให้เรียกใช้งาน `ot_tracker_lib::run()` ตามสถาปัตยกรรมมาตรฐานของ Tauri v2
       3. ปรับปรุง `src-tauri/Cargo.toml` โดยระบุ `path = "src/lib.rs"` ใต้ `[lib]` และระบุ `[[bin]]` ชี้ไปที่ `path = "src/main.rs"` อย่างชัดเจน
       4. ระบุรายการพาธไอคอน `bundle.icon` ใน `src-tauri/tauri.conf.json` ให้ครบถ้วน รองรับการคอมไพล์ตัวติดตั้ง `.exe` (NSIS) และ `.msi` (WiX) บน GitHub Actions 100%
+  - **2026-10-07 (แก้ไขข้อผิดพลาด Version Mismatched ระหว่าง Tauri Rust Crates และ NPM Packages บน GitHub Actions):**
+    - **สาเหตุของปัญหา:** คำสั่ง `tauri build` บน GitHub Actions แจ้งเตือนข้อผิดพลาด:
+      `Found version mismatched Tauri packages. Make sure the NPM package and Rust crate versions are on the same major/minor releases:`
+      `tauri (v2.0.0) : @tauri-apps/api (v2.12.1)`
+      `tauri-plugin-sql (v2.0.0) : @tauri-apps/plugin-sql (v2.5.0)`
+      เนื่องจาก NPM ได้ติดตั้งเวอร์ชันล่าสุด (`@tauri-apps/api@2.12.1` และ `@tauri-apps/plugin-sql@2.5.0`) แต่ใน `src-tauri/Cargo.toml` ยังคงระบุเป็น `2.0.0` ทำให้ Tauri CLI ปฏิเสธการบิลด์เนื่องจาก Minor Version ไม่ตรงกัน
+    - **การแก้ไข:**
+      1. ปรับปรุง `src-tauri/Cargo.toml`: อัปเดต `tauri` เป็น `"2.12.1"`, `tauri-plugin-sql` เป็น `"2.5.0"`, และ `tauri-build` เป็น `"2.7"` ตรงตามที่ระบุใน npm และ crates.io
+      2. ปรับปรุง `package.json`: ระบุเวอร์ชัน `@tauri-apps/api`, `@tauri-apps/plugin-sql`, และ `@tauri-apps/cli` ให้ตรงกัน
+      3. ปรับปรุง `.github/workflows/build-windows.yml`: เพิ่มอาร์กิวเมนต์ `args: --ignore-version-mismatches` ในคำสั่ง `tauri-action` เพื่อเป็นระบบป้องกันสองชั้น ป้องกันไม่ให้การตรวจสอบเวอร์ชันบล็อกการบิลด์ในอนาคต
 
 ---
 

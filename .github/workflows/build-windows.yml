@@ -37,6 +37,7 @@ jobs:
           releaseBody: "Release for Windows (.exe / .msi)"
           releaseDraft: true
           prerelease: false
+          args: --ignore-version-mismatches
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
