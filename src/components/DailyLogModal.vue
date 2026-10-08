@@ -341,24 +341,27 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform transition-all">
+  <div v-if="show" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform transition-all flex flex-col max-h-[92vh]">
       
-      <!-- Modal Header -->
-      <div class="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+      <!-- Modal Header (Sticky Top) -->
+      <div class="px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
         <div>
           <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">
             บันทึกการทำงาน OT วันที่ {{ day }} {{ THAI_MONTHS[store.currentMonth - 1] }} {{ store.currentYear }}
           </h3>
           <p class="text-xs text-secondary dark:text-slate-400">กรอกข้อมูลเวลาและเนื้องานที่ปฏิบัติ</p>
         </div>
-        <button @click="emit('close')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+        <button 
+          @click="emit('close')" 
+          class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-90 transition touch-manipulation cursor-pointer"
+        >
           <X class="w-5 h-5" />
         </button>
       </div>
 
-      <!-- Modal Body -->
-      <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-slate-800 dark:text-slate-200">
+      <!-- Modal Body (Scrollable Middle) -->
+      <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain text-slate-800 dark:text-slate-200">
         
         <!-- Scan Reference Banner if available -->
         <div v-if="scanInfo" class="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs space-y-1.5">
@@ -462,13 +465,13 @@ onUnmounted(() => {
                 type="button"
                 @click="applyQuickWeekdayHours(h)"
                 :class="[
-                  'py-2.5 px-2 rounded-xl text-xs font-semibold border transition text-center flex flex-col items-center justify-center cursor-pointer',
+                  'min-h-[46px] py-2 px-1 sm:px-2 rounded-xl text-xs font-semibold border transition text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 touch-manipulation select-none',
                   form.hours === h && form.startTime === '16:30'
                     ? 'bg-primary text-white border-primary shadow-xs font-bold'
                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
                 ]"
               >
-                <span class="text-sm">{{ h }} ชม.</span>
+                <span class="text-sm font-bold">{{ h }} ชม.</span>
                 <span class="text-[10px] opacity-80 font-normal">เลิก {{ 16 + h }}:30</span>
               </button>
             </div>
@@ -480,7 +483,7 @@ onUnmounted(() => {
                   type="button"
                   @click="applyHolidayShift('full')"
                   :class="[
-                    'py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer',
+                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
                     form.hours === 7 && form.startTime === '08:30' && form.endTime === '16:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
@@ -493,7 +496,7 @@ onUnmounted(() => {
                   type="button"
                   @click="applyHolidayShift('morning')"
                   :class="[
-                    'py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer',
+                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
                     form.hours === 3 && form.startTime === '08:30' && form.endTime === '11:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
@@ -506,7 +509,7 @@ onUnmounted(() => {
                   type="button"
                   @click="applyHolidayShift('afternoon')"
                   :class="[
-                    'py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer',
+                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
                     form.hours === 3 && form.startTime === '13:30' && form.endTime === '16:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
@@ -525,13 +528,13 @@ onUnmounted(() => {
                   type="button"
                   @click="applyQuickHolidayHours(h)"
                   :class="[
-                    'py-1.5 px-1 rounded-lg text-xs font-medium border transition text-center cursor-pointer',
+                    'min-h-[38px] py-2 px-1 rounded-lg text-xs font-medium border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
                     form.hours === h
                       ? 'bg-primary text-white border-primary font-bold shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary/50'
                   ]"
                 >
-                  <span>{{ h }} ชม.</span>
+                  <span class="font-bold">{{ h }} ชม.</span>
                 </button>
               </div>
             </div>
@@ -598,14 +601,14 @@ onUnmounted(() => {
               <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 จำนวนชั่วโมง
               </label>
-              <div class="flex items-center space-x-1">
+              <div class="flex items-center space-x-1.5">
                 <button 
                   type="button" 
                   @click="decrementHours" 
-                  class="w-8 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700"
+                  class="w-10 sm:w-11 h-10 sm:h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700 touch-manipulation select-none"
                   title="ลด 1 ชม."
                 >
-                  <Minus class="w-3.5 h-3.5" />
+                  <Minus class="w-4 h-4" />
                 </button>
                 <input 
                   v-model.number="form.hours" 
@@ -613,15 +616,15 @@ onUnmounted(() => {
                   type="number" 
                   min="0" 
                   :max="form.dayType === 'holiday' ? 7 : 4" 
-                  class="w-full h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-center font-bold text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  class="w-full h-10 sm:h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-center font-bold text-base focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button 
                   type="button" 
                   @click="incrementHours" 
-                  class="w-8 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700"
+                  class="w-10 sm:w-11 h-10 sm:h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700 touch-manipulation select-none"
                   title="เพิ่ม 1 ชม."
                 >
-                  <Plus class="w-3.5 h-3.5" />
+                  <Plus class="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -679,7 +682,7 @@ onUnmounted(() => {
               :key="preset.id"
               @click="applyPreset(preset.description)"
               type="button"
-              class="text-xs px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition"
+              class="min-h-[34px] text-xs px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition active:scale-95 touch-manipulation select-none"
             >
               {{ preset.title }}
             </button>
@@ -687,28 +690,28 @@ onUnmounted(() => {
         </div>
 
         <!-- Claim toggle -->
-        <div class="flex items-center space-x-2 pt-1">
+        <label for="claimCheck" class="flex items-center space-x-2.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer select-none touch-manipulation">
           <input 
             id="claimCheck" 
             v-model="form.isClaimed" 
             type="checkbox" 
-            class="w-4 h-4 text-primary rounded border-slate-300 dark:border-slate-700 focus:ring-primary"
+            class="w-4 h-4 text-primary rounded border-slate-300 dark:border-slate-700 focus:ring-primary shrink-0"
           />
-          <label for="claimCheck" class="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer">
+          <span class="text-xs text-slate-700 dark:text-slate-300 font-medium">
             นำรายการนี้ไปรวมในหลักฐานเบิกจ่ายเงิน OT ประจำเดือน
-          </label>
-        </div>
+          </span>
+        </label>
 
       </div>
 
-      <!-- Modal Footer -->
-      <div class="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+      <!-- Modal Footer (Sticky Bottom) -->
+      <div class="px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-50 dark:bg-slate-800/95 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
         <div>
           <button 
             v-if="store.logsByDay[day]"
             @click="handleDelete"
             type="button" 
-            class="inline-flex items-center space-x-1 text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded transition"
+            class="min-h-[40px] inline-flex items-center space-x-1 text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-xl transition active:scale-95 touch-manipulation cursor-pointer"
           >
             <Trash2 class="w-4 h-4" />
             <span>ลบรายการ</span>
@@ -720,7 +723,7 @@ onUnmounted(() => {
           <button 
             @click="emit('close')"
             type="button" 
-            class="px-3.5 py-2 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+            class="min-h-[42px] px-3.5 sm:px-4 py-2 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition active:scale-95 touch-manipulation cursor-pointer"
           >
             ยกเลิก (Esc)
           </button>
@@ -729,7 +732,7 @@ onUnmounted(() => {
           <button 
             @click="handleSaveAndNext"
             type="button" 
-            class="px-4 py-2 text-xs font-semibold rounded-xl text-slate-800 dark:text-slate-100 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition inline-flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            class="min-h-[42px] px-3.5 sm:px-4 py-2 text-xs font-semibold rounded-xl text-slate-800 dark:text-slate-100 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition inline-flex items-center space-x-1.5 cursor-pointer shadow-xs active:scale-95 touch-manipulation"
             title="บันทึกวันปัจจุบันแล้วเปิดวันถัดไปทันที (Ctrl+Shift+Enter)"
           >
             <span>บันทึก & วันถัดไป</span>
@@ -740,7 +743,7 @@ onUnmounted(() => {
           <button 
             @click="handleSave"
             type="button" 
-            class="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-primary hover:bg-primary-hover transition shadow-sm inline-flex items-center space-x-1.5"
+            class="min-h-[42px] px-4 sm:px-5 py-2 text-xs font-semibold rounded-xl text-white bg-primary hover:bg-primary-hover transition shadow-sm inline-flex items-center space-x-1.5 cursor-pointer active:scale-95 touch-manipulation"
             title="บันทึกข้อมูล (Ctrl+Enter)"
           >
             <Check class="w-4 h-4" />

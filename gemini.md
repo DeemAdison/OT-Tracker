@@ -478,13 +478,64 @@
   - **2026-10-07 (แก้ไขข้อผิดพลาด Resource not accessible by integration ในการสร้าง GitHub Release):**
     - **สาเหตุของปัญหา:** Workflow `build-tauri-windows` บน GitHub Actions คอมไพล์ตัวติดตั้งเสร็จแล้ว แต่เกิดข้อผิดพลาดขณะพยายามสร้าง GitHub Release:
       `Error: Resource not accessible by integration - https://docs.github.com/rest/releases/releases#create-a-release`
-      เนื่องจาก GitHub มีการตั้งค่าความปลอดภัยเริ่มต้นให้ `GITHUB_TOKEN` มีสิทธิ์เพียงอ่านอย่างเดียว (Read-only) หากไม่ประกาศ `permissions: contents: write` ในไฟล์ Workflow ตัว Action จะไม่มีสิทธิ์สร้าง Release หรืออัปโหลดไฟล์แนบเข้า Release ได้
     - **การแก้ไข:**
       1. เพิ่ม `permissions: contents: write` ทั้งในระดับ Top-level และ Job-level ใน `.github/workflows/build-windows.yml`
       2. เพิ่ม `permissions: contents: write` ใน `.github/workflows/build-android.yml` เพื่อให้รองรับการสร้าง Release และอัปโหลดไฟล์ Artifact ได้อย่างสมบูรณ์
       3. ให้คำแนะนำผู้ใช้ในการตรวจสอบการตั้งค่า Workflow permissions บนหน้าเว็บ GitHub (Settings > Actions > General > Workflow permissions > Read and write permissions)
+  - **2026-10-08 (ชี้แจงวงจรชีวิตและการจัดเก็บไฟล์ PDF ที่อัปโหลดเข้าสู่ระบบ):**
+    - **คำถามจากผู้ใช้:** "pdf ที่อัปโหลดเข้ามาที่ระบบ จะโดนลบไหม หรือเก็บไว้"
+    - **สรุปการทำงานของระบบ:**
+      1. **ไฟล์ต้นฉบับในเครื่องของผู้ใช้:** ไม่โดนลบแน่นอน 100% ตัวโปรแกรมทำงานภายใต้สิทธิ์ Sandbox ความปลอดภัยของเบราว์เซอร์/ระบบปฏิบัติการ จึงทำได้เพียงอ่านข้อมูล (Read-Only) ไฟล์ PDF ต้นฉบับในเครื่องจะยังคงอยู่ที่เดิมไม่เปลี่ยนแปลง
+      2. **ไฟล์ PDF ดิบ (Raw PDF File):** ระบบไม่ได้เก็บตัวไฟล์ PDF ไว้ เพื่อความปลอดภัยและความเป็นส่วนตัว (Privacy) รวมถึงเพื่อประหยัดพื้นที่จัดเก็บข้อมูลของเครื่อง
+      3. **ข้อมูลเวลาที่อ่านได้ (Parsed Attendance Data):** ระบบจะสกัดเฉพาะข้อมูลเวลาสแกนเข้า-ออก และสถานะวันหยุด มาบันทึกเก็บไว้ในฐานข้อมูลของเครื่อง (Local SQLite / LocalStorage) อย่างถาวร ข้อมูลจะคงอยู่ข้ามการปิด-เปิดแอปหรือรีสตาร์ตเครื่อง จนกว่าผู้ใช้จะกด "ล้างฐานข้อมูล" หรืออัปโหลดไฟล์ใหม่มาทับ
+
+  - **2026-10-08 (ประเมินผลและวิเคราะห์ UX/UI สำหรับการใช้งานบนแท็บเล็ต - Tablet Evaluation):**
+    - **การวิเคราะห์การใช้งานบน Tablet (iPad / Android Tablets):**
+      - **จุดเด่นที่ทำงานได้ดีแล้ว:**
+        1. ปุ่มด่วนเลือกชั่วโมง OT (Quick Presets) ในหน้าบันทึกวัน แตะสัมผัสได้รวดเร็วโดยไม่ต้องพิมพ์
+        2. แถบสลับ 12 เดือนลัด (12-Month Bar) รองรับการปัดเลื่อนนิ้ว (Touch Swipe) ได้ราบรื่น
+        3. ปุ่มบันทึกและไปวันถัดไป (Save & Next) ช่วยลดการแตะเข้า-ออก Modal ซ้ำๆ
+        4. ปุ่ม Stepper (+ / -) เพิ่มลดชั่วโมงได้ทันทีไม่ต้องพึ่ง Virtual Keyboard
+      - **จุดที่พบว่ายังไม่คล่องตัวและควรปรับปรุงบน Tablet (Pain Points):**
+        1. **ปฏิทินแตกเมื่อถือแท็บเล็ตแนวตั้ง (Portrait Mode):** Breakpoint `md` ถูกตั้งเป็น 3 คอลัมน์ (`md:grid-cols-3`) และหัวแถววัน 7 วันถูกซ่อน ทำให้ดูไม่ออกว่าวันใดเป็นวันใด
+        2. **ปุ่มที่ต้องใช้ Mouse Hover (Hover States):** ปุ่มสลับประเภทวันบนการ์ดปฏิทินเป็น `group-hover:opacity-100` ซึ่งบนจอสัมผัส (Touchscreen) ไม่มีเมาส์ชี้ ทำให้มองไม่เห็นปุ่ม
+        3. **ปัญหาคีย์บอร์ดเสมือน (Virtual Keyboard) เด้งบังปุ่มบันทึก:** ในหน้าจอแนวตั้ง คีย์บอร์ดแท็บเล็ตกินพื้นที่ 40-50% ของหน้าจอ อาจบดบังปุ่มบันทึก
+        4. **ขนาดพื้นที่สัมผัส (Touch Targets):** ปุ่มไอคอนบางจุดบน Navbar มีขนาดเล็กกว่า 44x44px ตามมาตรฐาน Touch Accessibility
+
+  - **2026-10-08 (ปรับปรุง UX/UI ให้เป็น Tablet-Ready 100% ทั้งแนวตั้งและแนวนอน):**
+    - **1. ปฏิทินแสดงผล 7 คอลัมน์เต็มรูปแบบบนแท็บเล็ตแนวตั้ง (`md:grid-cols-7`):**
+      - ปรับแก้ `CalendarView.vue` ให้แสดงหัวแถววัน 7 วัน (อาทิตย์ - เสาร์) และตาราง 7 คอลัมน์บนจอแท็บเล็ต (`md` ขึ้นไป) ไม่ถูกตัดเหลือ 3 คอลัมน์อีกต่อไป
+      - ปรับความสูงและ Padding ของช่องวันที่ให้ยืดหยุ่น (`min-h-[100px] md:min-h-[115px] lg:min-h-[135px]`) พอดีกับหน้าจอ iPad และ Android Tablet
+      - แสดงบล็อกวันของเดือนก่อนและเดือนถัดไป (`paddingBefore` / `paddingAfter`) ครบแถว 7 วันอย่างสมบูรณ์
+    - **2. แก้ไขปัญหา Hover บนจอสัมผัส (Touchscreen Support):**
+      - ปุ่มสลับประเภทวัน (วันทำการ / วันหยุด) บนการ์ดปฏิทิน ปรับเป็น `opacity-60 md:opacity-40 hover:opacity-100` พร้อม `touch-manipulation` ทำให้มองเห็นและแตะบนจอแท็บเล็ตได้ทันทีโดยไม่ต้องพึ่งพาเมาส์ Hover
+    - **3. โครงสร้าง Sticky Modal ป้องกันคีย์บอร์ดเสมือนบังปุ่ม (`DailyLogModal.vue`):**
+      - ปรับแต่ง Modal Container ให้เป็น `flex flex-col max-h-[92vh]` โดยมี Header และ Footer เป็น `shrink-0` (Sticky Top & Bottom)
+      - ส่วนฟอร์มกลางเป็น `flex-1 overflow-y-auto overscroll-contain` ทำให้เมื่อเปิดคีย์บอร์ดบนหน้าจอแท็บเล็ต ปุ่ม "บันทึก" และ "บันทึก & วันถัดไป" จะยังคงล็อกอยู่ด้านล่างตลอดเวลา แตะบันทึกได้ทันที
+    - **4. ขยายพื้นที่สัมผัส (Touch Targets & Tactile Feedback):**
+      - ขยายปุ่ม Stepper (`Minus` / `Plus`) เพิ่ม-ลดชั่วโมงเป็น `w-11 h-11` แตะได้ง่ายด้วยนิ้วมือ
+      - เพิ่มความสูงขั้นต่ำ `min-h-[46px]` ให้กับปุ่มเลือกชั่วโมงด่วน (1, 2, 3, 4 ชม. และเต็มวัน 7 ชม., เช้า 3 ชม., บ่าย 3 ชม.)
+      - เพิ่ม `active:scale-95` และ `touch-manipulation` ให้กับปุ่มทั้งหมดบน Navbar, ปฏิทิน, และหน้าต่างป็อปอัปทุกตัว ให้สัมผัสที่ตอบสนองเป็นธรรมชาติสไตล์แท็บเล็ต
+  - **2026-10-08 (คอมไพล์และอัปเดตแพ็กเกจทุกแพลตฟอร์มพร้อมใช้งาน 100% - All Platforms Rebuilt):**
+    - **1. macOS (Apple Silicon + Intel x86_64):**
+      - คอมไพล์ Universal 2 Binary และประกอบเป็น `OT Tracker.app` ใหม่
+      - บิลด์ตัวติดตั้ง `OT_Tracker_Setup.pkg` (1.2 MB) และไฟล์แจกจ่าย `OT_Tracker_macOS.zip` (2.5 MB)
+      - ซิงค์ไปยัง `public/` สำหรับดาวน์โหลดตรงจากตัวโปรแกรม
+    - **2. Windows (Windows 10 / 11):**
+      - ซิงค์ Web Assets ล่าสุดลงใน `windows-app/dist/`
+      - คอมไพล์ตัวติดตั้ง NSIS ด้วย `makensis` ได้ไฟล์ `OT_Tracker_Setup.exe` (2.1 MB)
+      - แพ็กไฟล์พกพา `OT_Tracker_Windows.zip` (2.1 MB) พร้อมสคริปต์รันออฟไลน์
+      - ซิงค์ไปยัง `public/` สำหรับดาวน์โหลดตรงจากตัวโปรแกรม
+    - **3. Android (Mobile & Tablet):**
+      - รัน `build-apk.sh` ซิงค์ Assets ล่าสุดลงใน `android-app/app/src/main/assets/` ครบถ้วน พร้อมเปิดบิลด์ใน Android Studio หรือรัน Workflow บน GitHub Actions
+    - **4. Tauri Desktop & Web:**
+      - โฟลเดอร์ `dist/` เป็นเวอร์ชันล่าสุดที่คอมไพล์ผ่าน `vite build` เรียบร้อย ซึ่งเป็นต้นทางของ Tauri CLI และ GitHub Actions CI/CD
 
 ---
+
+
+
+
 
 
 ## 5. การออกแบบระบบบันทึกงานรายวันและการกระทบยอด (Daily Log & Reconciliation Flow)

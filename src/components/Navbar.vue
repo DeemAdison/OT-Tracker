@@ -77,7 +77,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
             @click="store.prevMonth()" 
             type="button" 
             title="เดือนก่อนหน้า"
-            class="p-1.5 text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-white dark:hover:bg-slate-700 rounded-lg transition"
+            class="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-white dark:hover:bg-slate-700 active:scale-90 rounded-lg transition touch-manipulation cursor-pointer"
           >
             <ChevronLeft class="w-4 h-4" />
           </button>
@@ -86,7 +86,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <select 
             :value="store.currentMonth" 
             @change="store.setMonth(Number($event.target.value))"
-            class="bg-transparent text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer py-1 px-1.5 rounded"
+            class="bg-transparent text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer py-1.5 px-1.5 rounded touch-manipulation"
           >
             <option v-for="(m, idx) in THAI_MONTHS" :key="idx" :value="idx + 1" class="dark:bg-slate-800 text-slate-800 dark:text-slate-100">
               {{ m }}
@@ -97,7 +97,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <select 
             :value="store.currentYear" 
             @change="store.setYear(Number($event.target.value))"
-            class="bg-transparent text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer py-1 px-1 rounded border-l border-slate-200 dark:border-slate-700"
+            class="bg-transparent text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer py-1.5 px-1 rounded border-l border-slate-200 dark:border-slate-700 touch-manipulation"
           >
             <option v-for="y in thaiYears" :key="y" :value="y" class="dark:bg-slate-800 text-slate-800 dark:text-slate-100">
               {{ y }}
@@ -109,7 +109,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
             @click="store.nextMonth()" 
             type="button" 
             title="เดือนถัดไป"
-            class="p-1.5 text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-white dark:hover:bg-slate-700 rounded-lg transition"
+            class="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-white dark:hover:bg-slate-700 active:scale-90 rounded-lg transition touch-manipulation cursor-pointer"
           >
             <ChevronRight class="w-4 h-4" />
           </button>
@@ -120,7 +120,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           v-if="!store.isCurrentSystemMonth"
           @click="store.goToCurrentMonth()"
           type="button"
-          class="hidden md:inline-flex items-center space-x-1 px-2.5 py-1.5 text-xs font-bold rounded-xl text-primary bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 transition shadow-2xs cursor-pointer"
+          class="hidden md:inline-flex items-center space-x-1 min-h-[38px] px-2.5 py-1.5 text-xs font-bold rounded-xl text-primary bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 transition shadow-2xs active:scale-95 touch-manipulation cursor-pointer"
           title="สลับกลับมาที่เดือนและปีปัจจุบันตามนาฬิกาของเครื่อง"
         >
           <Calendar class="w-3.5 h-3.5" />
@@ -128,12 +128,12 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
         </button>
 
         <!-- Action Buttons -->
-        <div class="flex items-center space-x-1.5">
+        <div class="flex items-center space-x-1 sm:space-x-1.5">
           
           <!-- Upload PDF Button -->
           <button 
             @click="emit('open-upload')"
-            class="inline-flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs"
+            class="inline-flex items-center space-x-1 min-h-[38px] px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition shadow-2xs touch-manipulation cursor-pointer"
             title="นำเข้าไฟล์ PDF รายงานการลงเวลา"
           >
             <FileUp class="w-4 h-4 text-primary" />
@@ -143,7 +143,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <!-- Reconcile Button with Alert Badge -->
           <button 
             @click="emit('open-reconcile')"
-            class="relative inline-flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs"
+            class="relative inline-flex items-center space-x-1 min-h-[38px] px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition shadow-2xs touch-manipulation cursor-pointer"
             title="ตรวจสอบการกระทบยอดเวลา"
           >
             <Scale class="w-4 h-4 text-amber-600" />
@@ -159,7 +159,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <!-- Unified Export & Print Center Button -->
           <button 
             @click="emit('open-preview')"
-            class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-xl text-white bg-primary hover:bg-primary-hover transition shadow-sm cursor-pointer"
+            class="inline-flex items-center space-x-1.5 min-h-[38px] px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-xl text-white bg-primary hover:bg-primary-hover active:scale-95 transition shadow-sm touch-manipulation cursor-pointer"
             title="ดูตัวอย่าง ส่งออก Excel / Word และพิมพ์เอกสารราชการ"
           >
             <Printer class="w-4 h-4" />
@@ -170,7 +170,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <!-- Dark Mode Toggle Button (ข้อ 5) -->
           <button 
             @click="store.toggleTheme()"
-            class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+            class="w-9 sm:w-10 h-9 sm:h-10 flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 rounded-xl transition touch-manipulation cursor-pointer"
             :title="store.isDark ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืดถนอมสายตา'"
           >
             <Sun v-if="store.isDark" class="w-4 h-4 text-amber-400" />
@@ -180,7 +180,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <!-- Settings Button -->
           <button 
             @click="emit('open-settings')"
-            class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+            class="w-9 sm:w-10 h-9 sm:h-10 flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 rounded-xl transition touch-manipulation cursor-pointer"
             title="ตั้งค่าส่วนบุคคล"
           >
             <SettingsIcon class="w-4 h-4" />
@@ -189,7 +189,7 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           <!-- Logout / Lock Button -->
           <button 
             @click="store.logout()"
-            class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition"
+            class="w-9 sm:w-10 h-9 sm:h-10 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 active:scale-90 rounded-xl transition touch-manipulation cursor-pointer"
             title="ล็อกหน้าจอ / ออกจากระบบ"
           >
             <LogOut class="w-4 h-4" />
@@ -200,8 +200,8 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
       </div>
 
       <!-- Quick 12-Month Switcher Bar (ข้อ 2: เลือกเดือนได้ในคลิกเดียว) -->
-      <div class="py-1.5 overflow-x-auto flex items-center space-x-1 border-t border-slate-100 dark:border-slate-800 scrollbar-none">
-        <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 px-1 hidden sm:inline">
+      <div class="py-2 overflow-x-auto flex items-center space-x-1.5 border-t border-slate-100 dark:border-slate-800 scrollbar-none overscroll-x-contain">
+        <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 px-1 hidden sm:inline select-none">
           เลือกเดือน:
         </span>
         <button
@@ -210,9 +210,9 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           @click="store.setMonth(idx + 1)"
           type="button"
           :class="[
-            'px-2.5 py-1 text-xs font-semibold rounded-lg transition whitespace-nowrap',
+            'min-h-[34px] px-3 py-1 text-xs font-semibold rounded-xl transition whitespace-nowrap active:scale-95 touch-manipulation cursor-pointer select-none',
             store.currentMonth === (idx + 1)
-              ? 'bg-primary text-white shadow-xs'
+              ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
           ]"
         >

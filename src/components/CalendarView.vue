@@ -270,7 +270,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Calendar View Container -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs p-5 sm:p-6 transition-colors">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs p-3 sm:p-4 md:p-5 lg:p-6 transition-colors">
       
       <!-- Calendar Header & Keyboard Shortcuts Bar -->
       <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-5 gap-3">
@@ -305,40 +305,38 @@ onUnmounted(() => {
       </div>
 
       <!-- 7-Column Day-of-Week Headers (ขอบซ้าย = วันอาทิตย์, ขอบขวา = วันเสาร์) -->
-      <div class="hidden lg:grid grid-cols-7 gap-3 mb-2">
+      <div class="hidden md:grid grid-cols-7 gap-1.5 md:gap-2 lg:gap-3 mb-2">
         <div 
           v-for="wh in weekHeaders" 
           :key="wh.short"
           :class="[
-            'py-2 px-3 text-center rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1',
+            'py-1.5 md:py-2 px-1 md:px-2 text-center rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 select-none',
             wh.isWeekendBorder
-              ? (wh.side === 'left' 
-                  ? 'bg-rose-100/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs' 
-                  : 'bg-rose-100/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs')
+              ? 'bg-rose-100/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs' 
               : 'bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
           ]"
         >
-          <span v-if="wh.isWeekendBorder" class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span>
+          <span v-if="wh.isWeekendBorder" class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-rose-500 mr-0.5 md:mr-1"></span>
           <span>{{ wh.full }}</span>
-          <span class="text-[11px] font-normal opacity-75">({{ wh.short }})</span>
+          <span class="text-[10px] md:text-[11px] font-normal opacity-75 hidden xl:inline">({{ wh.short }})</span>
         </div>
       </div>
 
       <!-- 7 Columns Calendar Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-1.5 md:gap-2 lg:gap-3">
         
         <!-- Leading Padding Days (Previous Month) -->
         <div 
           v-for="pad in paddingBefore" 
           :key="'pad-before-' + pad.day"
-          class="hidden lg:flex border border-dashed border-slate-200/60 dark:border-slate-800/60 rounded-xl p-3 min-h-[135px] flex-col justify-between opacity-35 bg-slate-50/30 dark:bg-slate-900/20 select-none cursor-default"
+          class="hidden md:flex border border-dashed border-slate-200/60 dark:border-slate-800/60 rounded-xl p-2 md:p-2.5 lg:p-3 min-h-[100px] md:min-h-[115px] lg:min-h-[135px] flex-col justify-between opacity-35 bg-slate-50/30 dark:bg-slate-900/20 select-none cursor-default"
         >
           <div class="flex items-center space-x-1">
             <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-slate-400 dark:text-slate-600">
               {{ pad.day }}
             </span>
           </div>
-          <div class="text-[10px] text-center text-slate-300 dark:text-slate-600">เดือนก่อนหน้า</div>
+          <div class="text-[9px] md:text-[10px] text-center text-slate-300 dark:text-slate-600">เดือนก่อน</div>
         </div>
 
         <!-- Current Month Days (1..31) -->
@@ -347,7 +345,7 @@ onUnmounted(() => {
           :key="item.day"
           @click="focusedDay = item.day; emit('select-day', item.day)"
           :class="[
-            'border rounded-xl p-3 min-h-[135px] flex flex-col justify-between cursor-pointer transition hover:shadow-md relative overflow-hidden group',
+            'border rounded-xl p-2 md:p-2.5 lg:p-3 min-h-[100px] md:min-h-[115px] lg:min-h-[135px] flex flex-col justify-between cursor-pointer transition hover:shadow-md active:scale-[0.98] relative overflow-hidden group select-none touch-manipulation',
             item.holidayInfo 
               ? (item.holidayInfo.isHoliday 
                   ? 'bg-rose-50/50 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/50' 
@@ -363,10 +361,10 @@ onUnmounted(() => {
           <!-- Day Header -->
           <div>
             <div class="flex justify-between items-start">
-              <div class="flex items-center space-x-1.5">
+              <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0">
                 <span 
                   :class="[
-                    'w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm transition',
+                    'w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center font-bold text-xs md:text-sm transition shrink-0',
                     item.log 
                       ? 'bg-primary text-white shadow-xs' 
                       : (item.holidayInfo?.isHoliday 
@@ -386,22 +384,23 @@ onUnmounted(() => {
                 </span>
                 <span 
                   :class="[
-                    'text-[11px] font-medium',
+                    'text-[10px] sm:text-[11px] font-medium truncate',
                     (item.isSunday || item.isSaturday) ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'
                   ]"
                 >
-                  {{ item.dayOfWeek }}
+                  <span class="md:hidden lg:inline">{{ item.dayOfWeek }}</span>
+                  <span class="hidden md:inline lg:hidden">{{ item.dayOfWeek.slice(0, 3) }}</span>
                 </span>
               </div>
 
               <!-- Indicators & Quick Toggle Day Type Button -->
-              <div class="flex items-center space-x-1">
-                <!-- Quick Toggle Day Type Button on Hover -->
+              <div class="flex items-center space-x-1 shrink-0">
+                <!-- Quick Toggle Day Type Button on Touch & Hover -->
                 <button
                   @click="handleToggleDayType(item.day, $event)"
                   type="button"
                   :title="item.holidayInfo?.isHoliday ? 'คลิกเพื่อสลับเป็นวันทำการปกติ' : 'คลิกเพื่อสลับเป็นวันหยุดราชการ'"
-                  class="opacity-0 group-hover:opacity-100 transition p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  class="opacity-60 md:opacity-40 hover:opacity-100 transition p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 touch-manipulation"
                 >
                   <ToggleRight v-if="item.holidayInfo?.isHoliday" class="w-4 h-4 text-rose-500" />
                   <ToggleLeft v-else class="w-4 h-4 text-slate-400" />
@@ -494,14 +493,14 @@ onUnmounted(() => {
         <div 
           v-for="pad in paddingAfter" 
           :key="'pad-after-' + pad.day"
-          class="hidden lg:flex border border-dashed border-slate-200/60 dark:border-slate-800/60 rounded-xl p-3 min-h-[135px] flex-col justify-between opacity-35 bg-slate-50/30 dark:bg-slate-900/20 select-none cursor-default"
+          class="hidden md:flex border border-dashed border-slate-200/60 dark:border-slate-800/60 rounded-xl p-2 md:p-2.5 lg:p-3 min-h-[100px] md:min-h-[115px] lg:min-h-[135px] flex-col justify-between opacity-35 bg-slate-50/30 dark:bg-slate-900/20 select-none cursor-default"
         >
           <div class="flex items-center space-x-1">
             <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-slate-400 dark:text-slate-600">
               {{ pad.day }}
             </span>
           </div>
-          <div class="text-[10px] text-center text-slate-300 dark:text-slate-600">เดือนถัดไป</div>
+          <div class="text-[9px] md:text-[10px] text-center text-slate-300 dark:text-slate-600">เดือนถัดไป</div>
         </div>
 
       </div>

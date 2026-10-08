@@ -234,7 +234,7 @@ async function handleAutoResolveAll() {
                 <button 
                   @click="syncSingleDay(item)"
                   type="button" 
-                  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-sm transition cursor-pointer"
+                  class="min-h-[36px] px-3 py-1.5 text-xs font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700 shadow-sm transition active:scale-95 touch-manipulation cursor-pointer"
                 >
                   ปรับเป็น {{ item.scan.otHours }} ชม.
                 </button>
@@ -245,7 +245,7 @@ async function handleAutoResolveAll() {
                 <button 
                   @click="addUnloggedScan(item)"
                   type="button" 
-                  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm inline-flex items-center space-x-1 transition cursor-pointer"
+                  class="min-h-[36px] px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-sm inline-flex items-center space-x-1 transition active:scale-95 touch-manipulation cursor-pointer"
                 >
                   <Plus class="w-3.5 h-3.5" />
                   <span>เพิ่มงาน ({{ item.scan.otHours }} ชม.)</span>
@@ -257,7 +257,7 @@ async function handleAutoResolveAll() {
                 <button 
                   @click="ignoreMissingScan(item)"
                   type="button" 
-                  class="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+                  class="min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition active:scale-95 touch-manipulation cursor-pointer"
                   title="ไม่นำไปรวมในตารางเบิกเงิน"
                 >
                   ไม่เบิกวันนี้
@@ -268,7 +268,7 @@ async function handleAutoResolveAll() {
               <button 
                 @click="emit('edit-day', item.day)"
                 type="button" 
-                class="px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-lg transition cursor-pointer"
+                class="min-h-[36px] px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-xl transition active:scale-95 touch-manipulation cursor-pointer"
               >
                 แก้ไข
               </button>
@@ -281,11 +281,11 @@ async function handleAutoResolveAll() {
       </div>
 
       <!-- Modal Footer -->
-      <div class="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+      <div class="px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
         <button 
           @click="emit('close')"
           type="button" 
-          class="px-5 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+          class="min-h-[42px] px-5 py-2 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition active:scale-95 touch-manipulation cursor-pointer"
         >
           ปิดหน้าต่าง
         </button>
