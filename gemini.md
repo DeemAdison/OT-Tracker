@@ -530,8 +530,45 @@
       - รัน `build-apk.sh` ซิงค์ Assets ล่าสุดลงใน `android-app/app/src/main/assets/` ครบถ้วน พร้อมเปิดบิลด์ใน Android Studio หรือรัน Workflow บน GitHub Actions
     - **4. Tauri Desktop & Web:**
       - โฟลเดอร์ `dist/` เป็นเวอร์ชันล่าสุดที่คอมไพล์ผ่าน `vite build` เรียบร้อย ซึ่งเป็นต้นทางของ Tauri CLI และ GitHub Actions CI/CD
+  - **2026-10-15 (พัฒนาระบบซิงค์ข้อมูลผ่าน Cloud ส่วนตัว Google Drive Private Cloud Sync - สำเร็จ 100%):**
+    - **Client ID ที่ติดตั้งในระบบ:** `786851092864-sottu7l3vc3pg2pk9cf27gmkj5ik1b6s.apps.googleusercontent.com`
+    - **สถาปัตยกรรม Zero-Server ไร้คนกลาง:**
+      - เชื่อมต่อผ่าน Google Identity Services (GIS) และ Google Drive API v3
+      - ข้อมูลบันทึก OT ทั้งหมดถูกเก็บใน `appDataFolder` ซึ่งเป็นโฟลเดอร์ซ่อนพิเศษบน Google Drive ส่วนตัวของผู้ใช้งาน
+      - ปลอดภัย 100% ไม่มีผู้อื่นหรือแอปอื่นเข้าถึงได้ และไม่มี Server กลาง
+    - **ระบบผสานข้อมูลอัจฉริยะ (Smart Conflict Resolution & Merge Algorithm):**
+      - ผสานรายการบันทึก OT (`dailyLogs`), เวลาสแกน PDF (`attendanceScans`), วันหยุดพิเศษ (`customHolidays`), ข้อความงานด่วน (`presets`), และโปรไฟล์ (`settings`)
+      - ใช้ระบบ Timestamp (`updatedAt` / `createdAt`) เพื่อเลือกข้อมูลที่แก้ไขล่าสุด ป้องกันการเขียนทับจนข้อมูลสูญหายเมื่อใช้งานข้ามอุปกรณ์ (PC ที่ทำงาน ⇄ แท็บเล็ต ⇄ แล็ปท็อปส่วนตัว)
+    - **ระบบซิงค์อัตโนมัติ (Debounced Auto-Sync):**
+      - ซิงค์ขึ้น Google Drive ในเบื้องหลังทันทีเมื่อมีการบันทึกงาน, ลบรายการ, นำเข้า PDF, กระทบยอด หรือแก้ไขการตั้งค่า (หน่วงเวลา 2.5 วินาที)
+      - มีระบบ Silent Sync อัตโนมัติเมื่อเปิดแอปขึ้นมาใหม่
+    - **ปรับปรุง UI ครบวงจร:**
+      - เพิ่มแท็บ "ซิงค์ Cloud ส่วนตัว" ใน `SettingsModal.vue` แสดงสถานะการเชื่อมต่อ, บัญชี Google, รูปโปรไฟล์, ปุ่มซิงค์เดี๋ยวนี้, สลับเปิด/ปิด Auto-Sync, และช่องแก้ไข Client ID
+      - เพิ่มปุ่มสถานะก้อนเมฆ ☁️ ใน `Navbar.vue` แสดงสถานะเรียลไทม์ (เขียว = เชื่อมต่อแล้ว, หมุนวน = กำลังซิงค์, เทา = ยังไม่เชื่อมต่อ พร้อมคลิกเพื่อซิงค์ทันที)
+      - ปรับแต่ง `macos-app/main.m` ให้รองรับ Google OAuth Popup Window และกำหนด User-Agent ให้รองรับ Google Sign-In
+    - **แก้ไขปัญหา Google OAuth Error 400 บน Desktop App (Native Loopback OAuth Server):**
+      - **สาเหตุ:** Google ปฏิเสธการล็อกอินผ่าน Embedded WebView บน macOS Desktop App ด้วยข้อผิดพลาด 400: `invalid_request` ตามนโยบายความปลอดภัยของ Google
+      - **แก้ไขด้วย RFC 8252 Loopback Server:** สร้าง POSIX Socket Server บนพอร์ต `127.0.0.1:42815` ใน `macos-app/main.m` เมื่อผู้ใช้กดเชื่อมต่อ ระบบจะเปิด Safari/Chrome อัตโนมัติ เพื่อให้ผู้ใช้ล็อกอินอย่างปลอดภัย แล้วดึง Access Token กลับเข้าสู่โปรแกรมพร้อมปิดเซิร์ฟเวอร์ชั่วคราวอัตโนมัติ
+      - **เพิ่มหน้าต่างแนะนำและตัวเลือกสำรอง (`SettingsModal.vue`):**
+        1. คำแนะนำการตั้งค่าใน Google Cloud Console (สร้าง Client ID แบบ "Desktop app" หรือเพิ่ม URI `http://127.0.0.1:42815`)
+        2. ตัวเลือกสำรองเชื่อมต่อด้วยตนเอง (Manual Access Token): มีปุ่มเปิดหน้าเว็บขอสิทธิ์ และช่องวาง Access Token
+      - **การแก้ไขข้อผิดพลาด 400: redirect_uri_mismatch:**
+        - เกิดจากการที่ระบบ Google Cloud Console ยังไม่มี URI `http://127.0.0.1:42815` ในรายการ Authorized redirect URIs ของ Client ID เดิม (Web application)
+        - ได้จัดเตรียมแนวทางแก้ไข 2 วิธีให้ผู้ใช้: (1) เพิ่ม URI `http://127.0.0.1:42815` และ `http://localhost:42815` ใน Client ID เดิม หรือ (2) สร้าง Client ID ใหม่ประเภท "Desktop app" เพื่อรับสิทธิ์ Loopback อัตโนมัติทุกพอร์ตโดยไม่ต้องกรอก URI
+      - **การแก้ไขข้อผิดพลาด 403: access_denied (OAuth Consent Screen ในสถานะ Testing):**
+        - เกิดจากสถานะ Publishing Status ของแอปใน Google Cloud Console เป็น "Testing" ทำให้ Google จำกัดสิทธิ์ให้เฉพาะอีเมลที่ระบุในรายการ "Test users" (ผู้ใช้ทดสอบ) เท่านั้นที่ล็อกอินได้
+        - ในระบบ Google Cloud Console โฉมใหม่ (Google Auth Platform) เมนูจัดการ "Test users" และสถานะ "Publishing status" จะอยู่ที่แท็บ **"Audience"** (เมนูที่ 3 ทางซ้าย)
+        - แนะนำให้ผู้ใช้คลิกเข้าไปที่เมนู Audience แล้วเพิ่มอีเมลตนเองในหัวข้อ "Test users" หรือกด "PUBLISH APP" เพื่อเปิดใช้งานทั่วไป
+      - **คอมไพล์และอัปเดตแพ็กเกจติดตั้งใหม่ทั้งหมด:**
+        - macOS: `OT Tracker.app`, `OT_Tracker_Setup.pkg` (1.3 MB), `OT_Tracker_macOS.zip` (2.6 MB)
+        - Windows: `OT_Tracker_Setup.exe` (2.2 MB), `OT_Tracker_Windows.zip` (2.5 MB)
+        - In-App Downloads: ซิงค์ไฟล์ติดตั้งลงใน `public/` ครบถ้วน
 
 ---
+
+
+
+
 
 
 
@@ -555,6 +592,118 @@
 3. **การส่งออกเอกสาร (Export Engine):**
    - สร้างไฟล์ Excel ตาราง 31 วัน (`หลักฐานการเบิกจ่ายฯ.xlsx`)
    - สร้างไฟล์ Word รายงานผลปฏิบัติงาน (`รายงานผลการปฏิบัติงานฯ.docx`) ดึงข้อความงานรายวันที่บันทึกไว้มาจัดรูปแบบราชการทันที
+
+---
+
+## 6. แผนการพัฒนาต่อยอดในอนาคต (Future Product Roadmap)
+
+### 📌 ระยะที่ 1: ยกระดับประสบการณ์บนแท็บเล็ตและอุปกรณ์พกพา (Mobile & Tablet Experience)
+1. **Progressive Web App (PWA):**
+   - รองรับ "เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen) บน iPad (Safari) และ Android (Chrome) ติดตั้งเป็นไอคอนแอปได้ทันทีโดยไม่ต้องต่อสายคอมพิวเตอร์
+   - ใช้งานแบบ Standalone App ไร้แถบ URL เบราว์เซอร์ ทำงาน Offline 100% ผ่าน Service Worker Cache
+2. **ระบบปัดนิ้วนำทาง (Touch Gestures):**
+   - ปัดซ้าย/ขวา (Swipe Left/Right) บนปฏิทินเพื่อเลื่อนเดือน
+   - ปัดบนหน้าต่างบันทึกงานเพื่อสลับวันก่อนหน้า/วันถัดไปได้อย่างลื่นไหล
+3. **ระบบรับไฟล์ผ่าน Share Sheet (Web Share Target):**
+   - เมื่อได้รับไฟล์ PDF สแกนเวลาผ่าน LINE หรือ Email บนแท็บเล็ต สามารถกดปุ่ม "แชร์" (Share) แล้วเลือกส่งเข้าแอป OT Tracker เพื่อสกัดเวลาเข้าสู่ปฏิทินทันทีใน 1 วินาที
+
+### 📌 ระยะที่ 2: ความฉลาดในการบันทึกงาน (Smart & AI Logging Automation)
+1. **ระบบแนะนำข้อความงานอัจฉริยะ (Smart Auto-Complete & Pattern Recognition):**
+   - วิเคราะห์พฤติกรรมการลงงานเดิม เช่น วันจันทร์-พุธมักลงงานประเภทใด หรือวันหยุดมักลงงานประเภทใด เพื่อพยากรณ์และแนะนำข้อความให้อัตโนมัติเมื่อกดเลือกวัน
+2. **การพิมพ์ด้วยเสียง (Voice-to-Text Dictation):**
+   - แตะปุ่มไมโครโฟนเพื่อพูดบันทึกรายละเอียดงานที่ทำด้วยภาษาไทย ระบบแปลงเสียงเป็นข้อความลงในช่องงานทันที
+3. **คลังคำบรรยายงานมาตรฐานราชการ (Civil Service Task Phrase Library):**
+   - รวบรวมเทมเพลตคำศัพท์ทางการแยกตามสายงาน (งานสารบรรณ/ธุรการ, งานวิชาการ/วิเคราะห์, งานระบบคอมพิวเตอร์, งานตรวจสอบเอกสาร) ให้คลิกเลือกผสมคำได้สะดวกรวดเร็ว
+
+### 📌 ระยะที่ 3: สถิติ รายงานเชิงลึก และการวางแผนการเงิน (Financial & Analytics Dashboard)
+1. **แดชบอร์ดสรุปรายได้และสถิติรายปี (Annual Income & OT Summary):**
+   - แสดงกราฟแท่งเปรียบเทียบชั่วโมง OT และรายได้สะสม 12 เดือนตลอดทั้งปี พ.ศ.
+   - สรุปยอดเงินรวมทั้งปีสำหรับนำไปใช้ตรวจสอบหรือยื่นแบบภาษี
+2. **ระบบประมาณการภาษีหัก ณ ที่จ่าย (Withholding Tax Tracker):**
+   - คำนวณหักภาษี ณ ที่จ่าย (เช่น 1%) และประมาณการเงินได้สุทธิที่ได้รับจริงเข้าบัญชี
+3. **ระบบแจ้งเตือนเพดานงบประมาณ/โควตาชั่วโมง (Monthly Quota Alert):**
+   - สามารถกำหนดเพดานชั่วโมงเบิกของหน่วยงาน (เช่น เดือนละไม่เกิน 30 ชม. หรือ 1,500 บาท) เพื่อให้มีแถบแสดงความคืบหน้า (Progress Bar) แจ้งเตือนก่อนชั่วโมงเบิกเกินงบ
+
+### 📌 ระยะที่ 4: ความปลอดภัยและการเชื่อมโยงข้อมูลหลายอุปกรณ์ (Multi-Device & Security)
+1. **ระบบยืนยันตัวตนด้วยไบโอเมตริกส์ (Biometric Authentication):**
+   - รองรับการสแกนลายนิ้วมือ (Touch ID / Fingerprint) หรือสแกนใบหน้า (Face ID) เพื่อปลดล็อกแอปแทนการกรอกรหัส PIN
+2. **ระบบสำรองข้อมูลแบบเข้ารหัส (Encrypted Backup):**
+   - รองรับการตั้งรหัสผ่านสำหรับล็อกไฟล์ Backup `.json` ด้วยการเข้ารหัสมาตรฐาน AES-256 เพื่อความปลอดภัยสูงสุดเมื่อส่งต่อไฟล์
+3. **ระบบซิงค์ข้อมูลผ่าน Cloud ส่วนตัว (Private Cloud Sync):**
+   - เชื่อมโยงฐานข้อมูลผ่าน iCloud Drive, Google Drive หรือ OneDrive ส่วนตัวของผู้ใช้ เพื่อให้บันทึกงานบนแท็บเล็ตแล้วข้อมูลซิงค์ไปโผล่บนเครื่องคอมพิวเตอร์ Mac/Windows อัตโนมัติ โดยไม่ผ่านเซิร์ฟเวอร์ภายนอก
+
+### 📌 ระยะที่ 5: ระบบลายมือชื่ออิเล็กทรอนิกส์และเอกสารไร้กระดาษ (Digital Signature & Paperless)
+1. **การลงลายมือชื่อดิจิทัล (E-Signature Drawing & Attachment):**
+   - สามารถใช้ Apple Pencil / สไตลัส วาดลายเซ็นสดบนหน้าจอ หรืออัปโหลดรูปภาพลายเซ็นพื้นหลังโปร่งใส (PNG)
+   - นำลายเซ็นไปฝังลงในช่อง "ลายมือชื่อผู้ปฏิบัติงาน" ในไฟล์ Excel, Word, และ Print Preview โดยอัตโนมัติ พร้อมส่งออกเป็น PDF พร้อมยื่นเบิกได้ทันที 100% Paperless
+
+---
+
+## 5. เอกสารระบบซิงค์ข้อมูลผ่าน Cloud ส่วนตัว (Google Drive Private Cloud Sync)
+
+### 5.1 สถาปัตยกรรมไร้เซิร์ฟเวอร์ (Zero-Server Architecture)
+ระบบซิงค์ข้อมูลนี้ได้รับการออกแบบให้ทำงานแบบ **Client-to-Cloud 100%** โดยไม่มีเซิร์ฟเวอร์ตัวกลาง (No Middleman Server):
+- **Authentication Engine:** Google Identity Services (GIS) Web SDK (`google.accounts.oauth2.initTokenClient`)
+- **API Target:** Google Drive API v3
+- **OAuth 2.0 Web Client ID:** `786851092864-sottu7l3vc3pg2pk9cf27gmkj5ik1b6s.apps.googleusercontent.com`
+- **Scopes ที่ขออนุญาต:**
+  1. `https://www.googleapis.com/auth/drive.appdata` (เข้าถึงเฉพาะ App Data Folder ส่วนตัวของแอป)
+  2. `https://www.googleapis.com/auth/userinfo.profile` (แสดงชื่อและรูปโปรไฟล์ผู้ใช้งาน)
+  3. `https://www.googleapis.com/auth/userinfo.email` (แสดงอีเมลผู้ใช้งาน)
+
+### 5.2 ความเป็นส่วนตัวและความปลอดภัย (Privacy & Security via AppDataFolder)
+- ระบบเลือกใช้ `appDataFolder` (`spaces=appDataFolder`) ซึ่งเป็นพื้นที่จัดเก็บพิเศษที่ Google เตรียมไว้สำหรับแอปพลิเคชัน
+- ไฟล์สำรองชื่อ `ot_tracker_cloud_sync.json` จะถูกซ่อนจากมุมมองปกติใน Google Drive ของผู้ใช้ ทำให้ไม่ปะปนกับเอกสารงานทั่วไป และไม่เสี่ยงต่อการถูกลบโดยไม่ตั้งใจ
+- แอปพลิเคชันอื่นหรือผู้ใช้ที่เข้า Google Drive จะไม่สามารถมองเห็นหรือเปิดอ่านไฟล์นี้ได้
+
+### 5.3 อัลกอริทึมผสานข้อมูลอัจฉริยะ (Smart Conflict Resolution & Merge Algorithm)
+เมื่อผู้ใช้งานบันทึกข้อมูลจากหลายอุปกรณ์ (เช่น แท็บเล็ต ⇄ คอมพิวเตอร์ที่ทำงาน ⇄ แล็ปท็อปส่วนตัว) ระบบจะทำ Bidirectional Smart Merge ดังนี้:
+1. **Daily Logs (รายการบันทึก OT):**
+   - อิงคีย์วันที่ `YYYY-MM-DD`
+   - หากมีรายการเฉพาะในเครื่องใดเครื่องหนึ่ง จะนำมารวมเข้าด้วยกัน
+   - หากมีรายการในวันเดียวกันทั้งสองฝั่ง จะเปรียบเทียบ `updatedAt` / `createdAt` โดยข้อมูลที่แก้ไขล่าสุดจะได้รับสิทธิ์เป็นข้อมูลหลัก
+2. **Attendance Scans (เวลาสแกนจาก PDF):**
+   - รวมข้อมูลสแกนของทั้งสองฝั่งเข้าด้วยกันโดยไม่ซ้ำซ้อน
+3. **Custom Holidays (วันหยุดกำหนดเอง):**
+   - รวมการตั้งค่าวันหยุดพิเศษข้ามเครื่อง
+4. **Task Presets (ข้อความงานด่วน):**
+   - รวมปุ่มลัดข้อความงานที่เพิ่มใหม่จากทุกเครื่อง
+5. **Settings (โปรไฟล์ผู้ใช้งาน):**
+   - อัปเดตข้อมูลตามเวลาที่แก้ไขล่าสุด
+
+### 5.4 การทำงานแบบซิงค์อัตโนมัติ (Debounced Auto-Sync)
+- ทุกครั้งที่ผู้ใช้ทำรายการ เช่น บันทึกเวลา OT, ลบรายการ, นำเข้า PDF สแกนเวลา, กระทบยอดเวลา หรือเปลี่ยนการตั้งค่า ระบบจะหน่วงเวลา 2.5 วินาที (Debounce) แล้วส่งข้อมูลขึ้น Google Drive ในเบื้องหลัง
+- มีแถบสถานะและไอคอนก้อนเมฆ ☁️ บนแถบนำทางด้านบน (`Navbar.vue`) แสดงสถานะการทำงานแบบเรียลไทม์ พร้อมปุ่มกดสั่งซิงค์ทันที
+
+### 5.5 ระบบ Native Loopback OAuth 2.0 สำหรับ Desktop App (RFC 8252 Compliance)
+- **ปัญหาที่พบ:** Google บล็อกการยืนยันตัวตนผ่านหน้าต่างป็อปอัปของ Embedded WebView (`WKWebView`) บน macOS Desktop App พร้อมแจ้งข้อผิดพลาด:
+  - *"การเข้าถึงถูกบล็อก: เกิดข้อผิดพลาดในการให้สิทธิ์"*
+  - *"You can't sign in to this app because it doesn't comply with Google's OAuth 2.0 policy for keeping apps secure."* (ข้อผิดพลาด 400: `invalid_request`)
+- **สาเหตุ:** นโยบายความปลอดภัยของ Google ห้ามแอปพลิเคชัน Desktop ใช้ Embedded Browser/WebView ในการล็อกอินเด็ดขาด เพื่อป้องกันการดักจับรหัสผ่าน และไม่อนุญาต Custom URI scheme (`app://`) บน GIS Web SDK
+- **แนวทางแก้ไข (RFC 8252 Standard Loopback Server):**
+  1. บน macOS App (`macos-app/main.m`): เมื่อผู้ใช้คลิก "เชื่อมต่อกับ Google Drive" ระบบ Native Cocoa จะเริ่ม Temporary POSIX Socket Server ที่ `127.0.0.1:42815`
+  2. แอปจะสั่งเปิดเบราว์เซอร์ระบบเริ่มต้นของผู้ใช้ (Default System Browser เช่น Safari หรือ Chrome) ไปยังหน้าล็อกอินของ Google โดยอัตโนมัติ ซึ่งปลอดภัย 100% และผู้ใช้อาจล็อกอินบัญชี Google ค้างไว้อยู่แล้ว
+  3. เมื่อผู้ใช้กดยินยอม Google จะ Redirect กลับมายัง `http://127.0.0.1:42815/#access_token=ya29...`
+  4. Loopback Server บนเครื่องจะดักจับ Access Token ส่งกลับไปยัง WebKit ผ่าน `window.__onGoogleDriveAuthSuccess(token)` ดึงหน้าต่างแอป OT Tracker ขึ้นมาด้านหน้าสุด (Active Foreground) และปิด Socket Server อัตโนมัติ
+- **การตั้งค่า Google Cloud Console สำหรับผู้ใช้งาน:**
+  - **ตัวเลือกที่ 1 (แนะนำที่สุด):** สร้าง OAuth 2.0 Client ID ประเภท **"Desktop app" (แอปพลิเคชันเดสก์ท็อป)** ใน Google Cloud Console — ประเภทนี้ Google จะเปิดรับ Loopback Redirect ทุกพอร์ตบน `127.0.0.1` ให้อัตโนมัติโดยไม่ต้องตั้งค่า URI ใดๆ
+  - **ตัวเลือกที่ 2 (ใช้ Client ID เดิมแบบ Web Application):** ในหน้า Client ID ให้ไปที่หัวข้อ **"Authorized redirect URIs" (URI การเปลี่ยนเส้นทางที่ได้รับอนุญาต)** แล้วเพิ่ม:
+    - `http://127.0.0.1:42815`
+    - `http://localhost:42815`
+  - **ตัวเลือกที่ 3 (Manual Token Fallback):** มีปุ่ม "เปิดหน้าเว็บขอ Token" ให้ผู้ใช้กดยืนยันในเบราว์เซอร์ แล้วคัดลอก Access Token มาวางในโปรแกรมได้โดยตรง รองรับกรณีเน็ตเวิร์กขององค์กรบล็อก Loopback Port
+
+### 5.6 นโยบายการจำกัดสิทธิ์ใช้งานเฉพาะบุคคล (Single-User Strict Access Control)
+- **การคงสถานะ Testing ใน Google Cloud Console เพื่อป้องกันบุคคลภายนอก:**
+  - การปล่อยให้สถานะ Publishing Status เป็น **"Testing"** และมีเฉพาะบัญชี Gmail ของเจ้าของคนเดียวในรายชื่อ **"Test users"** คือการตั้งค่าความปลอดภัยระดับสูงสุด
+  - หากบุคคลอื่นใดนำตัวโปรแกรมไปติดตั้ง แล้วพยายามกดปุ่ม "เชื่อมต่อกับ Google Drive" โดยใช้บัญชี Google ของตนเอง ระบบ Google จะปฏิเสธการเข้าถึงและบล็อกทันทีด้วยข้อผิดพลาด **`403: access_denied`**
+  - ไม่มีใครอื่นนอกจากเจ้าของบัญชีที่สามารถเชื่อมต่อและซิงค์ข้อมูลผ่าน Google Cloud Project นี้ได้ 100%
+- **การปกป้องความเป็นส่วนตัว 2 ชั้น:**
+  1. **Cloud Security:** ไฟล์ฐานข้อมูลถูกจัดเก็บใน `appDataFolder` บน Google Drive ของเจ้าของเพียงผู้เดียว แยกออกจากไฟล์ปกติและไม่มีใครมองเห็นได้
+  2. **Device Security:** โปรแกรมมีระบบล็อกหน้าจอด้วยรหัส PIN (4-6 หลัก) ป้องกันไม่ให้บุคคลอื่นแอบเปิดดูข้อมูลบนคอมพิวเตอร์หรือแท็บเล็ต
+
+
+
+
 
 
 

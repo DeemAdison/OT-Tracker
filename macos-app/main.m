@@ -1,5 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
+#import <arpa/inet.h>
+#import <unistd.h>
 
 @interface AssetSchemeHandler : NSObject <WKURLSchemeHandler>
 @property (nonatomic, copy) NSString *distPath;
@@ -71,6 +75,8 @@
 @property (nonatomic, strong) NSWindow *window;
 @property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, strong) WKWebView *hiddenPrintWebView;
+@property (nonatomic, assign) int serverSocket;
+@property (nonatomic, assign) BOOL isListeningAuth;
 @end
 
 @implementation AppDelegate
@@ -127,10 +133,12 @@
     [userContent addScriptMessageHandler:self name:@"nativeSavePDF"];
     [userContent addScriptMessageHandler:self name:@"nativeSaveDatabase"];
     [userContent addScriptMessageHandler:self name:@"nativeLoadDatabase"];
+    [userContent addScriptMessageHandler:self name:@"nativeGoogleAuth"];
     config.userContentController = userContent;
 
     // Enable developer extras in debug
     [config.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
+    config.applicationNameForUserAgent = @"Version/17.5 Safari/605.1.15";
 
     // 5. Create WKWebView
     self.webView = [[WKWebView alloc] initWithFrame:self.window.contentView.bounds configuration:config];
@@ -217,6 +225,15 @@
     [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse returnCode) {
         completionHandler();
     }];
+}
+
+// WKUIDelegate: Handle Popup Windows (Open in Default System Browser e.g. Safari)
+- (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures {
+    NSURL *targetURL = navigationAction.request.URL;
+    if (targetURL && targetURL.absoluteString.length > 0) {
+        [[NSWorkspace sharedWorkspace] openURL:targetURL];
+    }
+    return nil;
 }
 
 // WKScriptMessageHandler: Handle nativeSaveFile from JS
@@ -373,7 +390,136 @@
                 [self.webView evaluateJavaScript:js completionHandler:nil];
             }
         }
+    } else if ([message.name isEqualToString:@"nativeGoogleAuth"]) {
+        NSDictionary *dict = [message.body isKindOfClass:[NSDictionary class]] ? (NSDictionary *)message.body : @{};
+        NSString *clientId = dict[@"clientId"] ?: @"786851092864-sottu7l3vc3pg2pk9cf27gmkj5ik1b6s.apps.googleusercontent.com";
+        [self startLocalOAuthServerWithClientId:clientId];
     }
+}
+
+- (void)stopLocalOAuthServer {
+    self.isListeningAuth = NO;
+    if (self.serverSocket > 0) {
+        close(self.serverSocket);
+        self.serverSocket = -1;
+    }
+}
+
+- (void)startLocalOAuthServerWithClientId:(NSString *)clientId {
+    [self stopLocalOAuthServer];
+    
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return;
+    
+    int opt = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    
+    struct sockaddr_in sin;
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(42815);
+    sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+    
+    if (bind(sock, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        close(sock);
+        NSLog(@"Failed to bind port 42815");
+        return;
+    }
+    
+    if (listen(sock, 5) < 0) {
+        close(sock);
+        return;
+    }
+    
+    self.serverSocket = sock;
+    self.isListeningAuth = YES;
+    
+    // Open System Default Browser (Safari/Chrome) for secure OAuth
+    NSString *scope = @"https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile";
+    NSString *escapedScope = [scope stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+    NSString *authURLStr = [NSString stringWithFormat:@"https://accounts.google.com/o/oauth2/v2/auth?client_id=%@&redirect_uri=http://127.0.0.1:42815&response_type=token&scope=%@", clientId, escapedScope];
+    
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:authURLStr]];
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        while (self.isListeningAuth) {
+            struct sockaddr_in clientAddr;
+            socklen_t clientLen = sizeof(clientAddr);
+            int clientSock = accept(self.serverSocket, (struct sockaddr *)&clientAddr, &clientLen);
+            if (clientSock < 0) break;
+            
+            char buffer[8192];
+            ssize_t bytesRead = read(clientSock, buffer, sizeof(buffer) - 1);
+            if (bytesRead > 0) {
+                buffer[bytesRead] = '\0';
+                NSString *request = [NSString stringWithUTF8String:buffer];
+                
+                if ([request containsString:@"/token?"] || [request containsString:@"access_token="]) {
+                    // Extract token
+                    NSString *token = nil;
+                    NSRange tokenRange = [request rangeOfString:@"access_token="];
+                    if (tokenRange.location != NSNotFound) {
+                        NSString *after = [request substringFromIndex:tokenRange.location + tokenRange.length];
+                        NSRange endRange = [after rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"& \r\n"]];
+                        if (endRange.location != NSNotFound) {
+                            token = [after substringToIndex:endRange.location];
+                        } else {
+                            token = after;
+                        }
+                    }
+                    
+                    const char *resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK";
+                    write(clientSock, resp, strlen(resp));
+                    close(clientSock);
+                    
+                    if (token && token.length > 0) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            NSString *js = [NSString stringWithFormat:@"if (window.__onGoogleDriveAuthSuccess) window.__onGoogleDriveAuthSuccess('%@');", token];
+                            [self.webView evaluateJavaScript:js completionHandler:nil];
+                            [self.window makeKeyAndOrderFront:nil];
+                            [NSApp activateIgnoringOtherApps:YES];
+                        });
+                        [self stopLocalOAuthServer];
+                        break;
+                    }
+                } else {
+                    // Serve the extraction HTML
+                    NSString *html = @"<!DOCTYPE html>"
+                    "<html><head><meta charset='utf-8'><title>เชื่อมต่อสำเร็จ</title>"
+                    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+                    "<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8fafc;color:#1e293b;}"
+                    ".card{background:white;padding:36px;border-radius:20px;box-shadow:0 10px 25px rgba(0,0,0,0.06);text-align:center;max-width:400px;border:1px solid #e2e8f0;}"
+                    "h2{color:#16a34a;margin:12px 0 8px;font-size:20px;}p{font-size:13px;color:#64748b;margin:0 0 16px;line-height:1.6;}"
+                    ".badge{display:inline-block;padding:4px 12px;background:#dcfce7;color:#15803d;border-radius:30px;font-weight:bold;font-size:11px;}"
+                    "</style></head><body>"
+                    "<div class='card'>"
+                    "<div class='badge'>OT Tracker</div>"
+                    "<h2>✅ เชื่อมต่อ Google Drive สำเร็จ!</h2>"
+                    "<p>ระบบกำลังซิงค์ข้อมูลกลับไปยังโปรแกรม OT Tracker บนเครื่อง Mac ของคุณ<br>คุณสามารถปิดหน้าต่างนี้ได้ทันทีครับ</p>"
+                    "</div>"
+                    "<script>"
+                    "const hash = window.location.hash.substring(1);"
+                    "if (hash) {"
+                    "  fetch('/token?' + hash).then(() => setTimeout(() => window.close(), 1500));"
+                    "} else {"
+                    "  const params = new URLSearchParams(window.location.search);"
+                    "  if (params.get('access_token')) {"
+                    "    fetch('/token?' + params.toString()).then(() => setTimeout(() => window.close(), 1500));"
+                    "  }"
+                    "}"
+                    "</script></body></html>";
+                    
+                    NSData *htmlData = [html dataUsingEncoding:NSUTF8StringEncoding];
+                    NSString *header = [NSString stringWithFormat:@"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %lu\r\nConnection: close\r\n\r\n", (unsigned long)htmlData.length];
+                    write(clientSock, [header UTF8String], strlen([header UTF8String]));
+                    write(clientSock, htmlData.bytes, htmlData.length);
+                    close(clientSock);
+                }
+            } else {
+                close(clientSock);
+            }
+        }
+    });
 }
 
 - (void)setupMenu {

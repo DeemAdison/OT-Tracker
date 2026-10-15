@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Printer,
   Sun,
-  Moon
+  Moon,
+  Cloud,
+  RefreshCw
 } from 'lucide-vue-next';
 
 const emit = defineEmits(['open-upload', 'open-reconcile', 'open-export', 'open-preview', 'open-settings']);
@@ -165,6 +167,29 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
             <Printer class="w-4 h-4" />
             <span class="hidden sm:inline">ส่งออก / พิมพ์เอกสาร</span>
             <span class="sm:hidden">ส่งออก</span>
+          </button>
+
+          <!-- Cloud Sync Quick Status & Button -->
+          <button 
+            @click="store.cloudSync.isConnected ? store.syncGoogleDrive(false) : emit('open-settings', 'cloud')"
+            class="relative w-9 sm:w-10 h-9 sm:h-10 flex items-center justify-center rounded-xl transition touch-manipulation cursor-pointer active:scale-90"
+            :class="[
+              store.cloudSync.isConnected 
+                ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40' 
+                : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            ]"
+            :title="store.cloudSync.isConnected 
+              ? (store.cloudSync.isSyncing ? 'กำลังซิงค์ข้อมูล Google Drive...' : 'ซิงค์กับ Google Drive แล้ว (คลิกเพื่อซิงค์ทันที)') 
+              : 'เชื่อมต่อ Google Drive ส่วนตัว (คลิกเพื่อตั้งค่า)'"
+          >
+            <RefreshCw v-if="store.cloudSync.isSyncing" class="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400" />
+            <Cloud v-else class="w-4 h-4" />
+            
+            <!-- Green status dot when connected -->
+            <span 
+              v-if="store.cloudSync.isConnected && !store.cloudSync.isSyncing"
+              class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900"
+            ></span>
           </button>
 
           <!-- Dark Mode Toggle Button (ข้อ 5) -->

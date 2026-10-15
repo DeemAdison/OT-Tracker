@@ -20,6 +20,21 @@ import {
 import { parseAttendancePdf, THAI_MONTHS } from '../services/pdfParser';
 import { exportToExcel, exportToWord, exportDatabaseBackup, importDatabaseBackup } from '../services/exportService';
 import { getCivilServiceReportTimes, getThaiHoliday, isWeekend } from '../services/thaiHolidays';
+import {
+  isGoogleConnected,
+  getGoogleUser,
+  isAutoSyncEnabled,
+  setAutoSync,
+  getLastSyncTime,
+  loginGoogleDrive,
+  disconnectGoogleDrive,
+  syncWithGoogleDrive,
+  getClientId,
+  setClientId,
+  DEFAULT_CLIENT_ID,
+  setManualAccessToken,
+  getDirectOAuthUrl
+} from '../services/googleDriveSync';
 
 export const useOtStore = defineStore('ot', {
   state: () => {
@@ -49,6 +64,15 @@ export const useOtStore = defineStore('ot', {
       presets: [],
       isLoading: false,
       isDark: false,
+      cloudSync: {
+        isConnected: false,
+        user: null,
+        isSyncing: false,
+        lastSyncTime: null,
+        error: null,
+        autoSync: true,
+        clientId: DEFAULT_CLIENT_ID
+      }
     };
   },
 
@@ -305,6 +329,7 @@ export const useOtStore = defineStore('ot', {
     async init() {
       if (this.initialized) return;
       this.initTheme();
+      this.initCloudSync();
       this.isLoading = true;
       try {
         await initDb();
@@ -320,6 +345,15 @@ export const useOtStore = defineStore('ot', {
             this.presets = await getPresets();
             await this.loadCurrentMonthData();
           });
+        }
+
+        // Silent background sync if already connected
+        if (this.cloudSync.isConnected && this.cloudSync.autoSync && typeof navigator !== 'undefined' && navigator.onLine) {
+          setTimeout(() => {
+            this.syncGoogleDrive(false).catch((e) => {
+              console.warn('Initial background sync note:', e);
+            });
+          }, 1500);
         }
       } catch (err) {
         console.error('Failed to init OT store:', err);
@@ -379,12 +413,14 @@ export const useOtStore = defineStore('ot', {
         this.customHolidays.push(saved);
       }
       this.customHolidays.sort((a, b) => a.day - b.day);
+      this.triggerAutoSync();
       return saved;
     },
 
     async removeCustomHoliday(idOrDay) {
       await dbDeleteCustomHoliday(idOrDay, this.currentYear, this.currentMonth);
       this.customHolidays = this.customHolidays.filter(h => h.id !== idOrDay && Number(h.day) !== Number(idOrDay));
+      this.triggerAutoSync();
     },
 
     // Quick Toggle Day Type (Weekday ⇄ Holiday)
@@ -476,27 +512,32 @@ export const useOtStore = defineStore('ot', {
         }
       }
 
+      this.triggerAutoSync();
       return saved;
     },
 
     async deleteLog(id) {
       await deleteDailyLog(id);
       this.dailyLogs = this.dailyLogs.filter(l => l.id !== id);
+      this.triggerAutoSync();
     },
 
     async updateSettings(newSettings) {
       this.settings = await dbSaveSettings({ ...this.settings, ...newSettings });
+      this.triggerAutoSync();
     },
 
     async addPreset(preset) {
       const saved = await dbSavePreset(preset);
       this.presets.push(saved);
+      this.triggerAutoSync();
       return saved;
     },
 
     async removePreset(id) {
       await dbDeletePreset(id);
       this.presets = this.presets.filter(p => p.id !== id);
+      this.triggerAutoSync();
     },
 
     // Import and parse PDF
@@ -520,6 +561,7 @@ export const useOtStore = defineStore('ot', {
 
         // Save Scans to DB
         this.attendanceScans = await saveAttendanceScans(this.currentYear, this.currentMonth, parsed.records);
+        this.triggerAutoSync();
 
         return { success: true, count: parsed.records.length };
       } catch (err) {
@@ -645,6 +687,111 @@ export const useOtStore = defineStore('ot', {
       await clearAllData();
       this.dailyLogs = [];
       this.attendanceScans = [];
+    },
+
+    // ---------------- Google Drive Cloud Sync Actions ----------------
+    initCloudSync() {
+      try {
+        this.cloudSync.isConnected = isGoogleConnected();
+        this.cloudSync.user = getGoogleUser();
+        this.cloudSync.autoSync = isAutoSyncEnabled();
+        this.cloudSync.lastSyncTime = getLastSyncTime();
+        this.cloudSync.clientId = getClientId();
+      } catch (e) {
+        console.warn('Failed to init cloud sync state:', e);
+      }
+    },
+
+    async loginGoogle() {
+      this.cloudSync.isSyncing = true;
+      this.cloudSync.error = null;
+      try {
+        const { profile } = await loginGoogleDrive({ promptConsent: false });
+        this.cloudSync.isConnected = true;
+        this.cloudSync.user = profile;
+        // Immediate bidirectional sync on login
+        await this.syncGoogleDrive(true);
+        return { success: true, profile };
+      } catch (err) {
+        this.cloudSync.error = err.message || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ';
+        throw err;
+      } finally {
+        this.cloudSync.isSyncing = false;
+      }
+    },
+
+    async saveManualToken(token) {
+      this.cloudSync.isSyncing = true;
+      this.cloudSync.error = null;
+      try {
+        const { profile } = await setManualAccessToken(token);
+        this.cloudSync.isConnected = true;
+        this.cloudSync.user = profile;
+        await this.syncGoogleDrive(true);
+        return { success: true, profile };
+      } catch (err) {
+        this.cloudSync.error = err.message || 'บันทึก Token ไม่สำเร็จ';
+        throw err;
+      } finally {
+        this.cloudSync.isSyncing = false;
+      }
+    },
+
+    getOAuthUrl() {
+      return getDirectOAuthUrl();
+    },
+
+    disconnectGoogle() {
+      disconnectGoogleDrive();
+      this.cloudSync.isConnected = false;
+      this.cloudSync.user = null;
+      this.cloudSync.error = null;
+      this.cloudSync.lastSyncTime = null;
+    },
+
+    toggleAutoSync(val) {
+      this.cloudSync.autoSync = val;
+      setAutoSync(val);
+    },
+
+    updateClientId(newId) {
+      setClientId(newId);
+      this.cloudSync.clientId = getClientId();
+    },
+
+    async syncGoogleDrive(allowPrompt = false) {
+      if (this.cloudSync.isSyncing) return;
+      if (!this.cloudSync.isConnected && !allowPrompt) return;
+
+      this.cloudSync.isSyncing = true;
+      this.cloudSync.error = null;
+      try {
+        const res = await syncWithGoogleDrive({ allowPrompt });
+        this.cloudSync.lastSyncTime = res.lastSync;
+        // Refresh local store
+        this.settings = await getSettings();
+        this.presets = await getPresets();
+        await this.loadCurrentMonthData();
+        return res;
+      } catch (err) {
+        console.warn('Google Drive Sync error:', err);
+        this.cloudSync.error = err.message || 'การซิงค์ข้อมูลกับ Google Drive ขัดข้อง';
+        throw err;
+      } finally {
+        this.cloudSync.isSyncing = false;
+      }
+    },
+
+    triggerAutoSync() {
+      if (!this.cloudSync.isConnected || !this.cloudSync.autoSync) return;
+      if (this._autoSyncTimer) clearTimeout(this._autoSyncTimer);
+      this._autoSyncTimer = setTimeout(async () => {
+        try {
+          await this.syncGoogleDrive(false);
+        } catch (e) {
+          console.warn('Auto-sync failed quietly:', e);
+        }
+      }, 2500);
     }
   }
 });

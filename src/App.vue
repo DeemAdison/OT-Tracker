@@ -19,7 +19,13 @@ const selectedDay = ref(1);
 const showReconcileModal = ref(false);
 const showUploadModal = ref(false);
 const showSettingsModal = ref(false);
+const settingsInitialTab = ref('profile');
 const showPrintPreviewModal = ref(false);
+
+function handleOpenSettings(tab = 'profile') {
+  settingsInitialTab.value = typeof tab === 'string' ? tab : 'profile';
+  showSettingsModal.value = true;
+}
 
 function handleSelectDay(day) {
   selectedDay.value = day;
@@ -56,7 +62,7 @@ onMounted(async () => {
       @open-upload="showUploadModal = true"
       @open-reconcile="showReconcileModal = true"
       @open-export="showPrintPreviewModal = true"
-      @open-settings="showSettingsModal = true"
+      @open-settings="handleOpenSettings"
       @open-preview="showPrintPreviewModal = true"
     />
 
@@ -115,6 +121,7 @@ onMounted(async () => {
 
     <SettingsModal 
       :show="showSettingsModal"
+      :initial-tab="settingsInitialTab"
       @close="showSettingsModal = false"
     />
 

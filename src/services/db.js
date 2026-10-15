@@ -230,19 +230,20 @@ export async function getSettings() {
 }
 
 export async function saveSettings(settings) {
+  const data = { ...settings, updatedAt: settings.updatedAt || new Date().toISOString() };
   if (isTauriEnv && tauriDb) {
-    for (const [k, v] of Object.entries(settings)) {
+    for (const [k, v] of Object.entries(data)) {
       const valStr = JSON.stringify(v);
       await tauriDb.execute(
         'INSERT OR REPLACE INTO settings (key, value) VALUES ($1, $2)',
         [k, valStr]
       );
     }
-    return settings;
+    return data;
   }
-  localStorage.setItem(LOCAL_STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+  localStorage.setItem(LOCAL_STORAGE_KEY_SETTINGS, JSON.stringify(data));
   syncToNativeStorage();
-  return settings;
+  return data;
 }
 
 // ---------------- Daily Logs ----------------
@@ -279,10 +280,12 @@ export async function getDailyLogs(year, month) {
 }
 
 export async function saveDailyLog(log) {
+  const nowIso = new Date().toISOString();
   const item = {
     ...log,
     id: log.id || `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    createdAt: log.createdAt || new Date().toISOString()
+    createdAt: log.createdAt || nowIso,
+    updatedAt: nowIso
   };
 
   if (isTauriEnv && tauriDb) {
