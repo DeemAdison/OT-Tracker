@@ -716,7 +716,20 @@
       - เนื่องจาก Google มีนโยบายความปลอดภัยบล็อกการล็อกอิน OAuth ใน Embedded WebView (`disallowed_useragent`) บน Android แนะนำให้ใช้ **"วิธีที่ 3: ระบุ Access Token ด้วยตนเอง"** โดยแตะ "เปิดหน้าเว็บขอ Token" ระบบจะเด้งเปิด Google Chrome บนมือถือให้ล็อกอินอย่างปลอดภัย จากนั้นคัดลอก Access Token มาวาง
       - สำหรับการลงทะเบียนใน Google Cloud Console (ถ้าใช้แอป APK):
         - **Authorized JavaScript origins:** `https://appassets.androidplatform.net`
-        - **Authorized redirect URIs:** `https://appassets.androidplatform.net`
+  - **สรุปรายการที่ต้องตั้งค่าใน Google Cloud Console (Master Cheat-Sheet ทุกอุปกรณ์):**
+    - **Authorized JavaScript origins (ต้นทาง JavaScript):**
+      - `http://127.0.0.1:53123`
+      - `http://localhost:53123`
+      - `http://localhost`
+      - `https://appassets.androidplatform.net`
+    - **Authorized redirect URIs (URI เปลี่ยนเส้นทาง):**
+      - `http://127.0.0.1:42815`
+      - `http://localhost:42815`
+      - `http://127.0.0.1:53123`
+      - `http://localhost:53123`
+      - `https://appassets.androidplatform.net`
+    - **Test Users (ถ้าให้ผู้อื่นใช้ด้วย):** เพิ่ม Gmail ของผู้ใช้งานในหน้า OAuth consent screen
+
 
 
 
