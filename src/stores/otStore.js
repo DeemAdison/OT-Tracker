@@ -519,6 +519,8 @@ export const useOtStore = defineStore('ot', {
 
     async deleteLog(id, day = null) {
       const targetDay = (day !== null && day !== undefined) ? Number(day) : (this.dailyLogs.find(l => l.id === id)?.day);
+      const existing = targetDay ? this.logsByDay[targetDay] : this.dailyLogs.find(l => l.id === id);
+
       await deleteDailyLog(id, targetDay ? { year: this.currentYear, month: this.currentMonth, day: targetDay } : null);
       this.dailyLogs = this.dailyLogs.filter(l => {
         if (id && l.id === id) return false;
@@ -526,8 +528,22 @@ export const useOtStore = defineStore('ot', {
         return true;
       });
       if (targetDay) {
-        const dateKey = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
-        recordTombstone(dateKey);
+        const canonicalKey = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+        const thaiDateKey = `${targetDay} ${THAI_MONTHS[this.currentMonth - 1]} ${this.currentYear}`;
+        recordTombstone(canonicalKey);
+        recordTombstone(thaiDateKey);
+        const altY = this.currentYear > 2400 ? this.currentYear - 543 : this.currentYear + 543;
+        recordTombstone(`${altY}-${String(this.currentMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`);
+        recordTombstone(`${targetDay} ${THAI_MONTHS[this.currentMonth - 1]} ${altY}`);
+      }
+      if (existing?.date) {
+        recordTombstone(existing.date);
+      }
+      if (existing?.id) {
+        recordTombstone(existing.id);
+      }
+      if (id) {
+        recordTombstone(id);
       }
       this.triggerAutoSync();
     },

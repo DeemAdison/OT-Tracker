@@ -738,6 +738,25 @@
         2. ปรับปรุง `mergeDatasets` ใน `googleDriveSync.js`: ก่อนจะดึงรายการจาก Google Drive มาบันทึก ให้ตรวจสอบกับ Tombstone เสมอ หากรายการนั้นถูกลบทีหลังเวลาที่ข้อมูลบน Cloud ถูกสร้าง จะไม่ดึงกลับมา และจะทำการสั่งลบรายการนั้นออกจาก Google Drive อัตโนมัติ (`hasChanges = true`)
         3. ปรับปรุง `deleteDailyLog` และ `deleteLog` ให้รองรับการลบตาม ID ควบคู่กับวันที่/เดือน/ปี เพื่อความแม่นยำ 100%
         4. เพิ่มการแจ้งเตือน Toast เมื่อกดลบรายการสำเร็จใน `DailyLogModal.vue`
+    - **แก้ไขปัญหาบิลด์และระบบ Tombstone Key Normalization (ลบข้อมูลถาวรข้ามเครื่อง 100%):**
+      - **สาเหตุที่ลบแล้วยังกลับมาในรอบก่อนหน้า:**
+        1. เกิด Build Syntax Error ใน `googleDriveSync.js` เนื่องจากฟังก์ชัน `getLogKey` ถูกวางซ้อนอยู่ภายใน `mergeDatasets` ทำให้คำสั่ง `npm run build` ไม่ผ่าน ตัวแอปที่รันอยู่ในเครื่องจึงยังคงเป็นเวอร์ชันเก่าก่อนหน้าที่ยังไม่มีระบบ Tombstone
+        2. รูปแบบคีย์วันที่ไม่ตรงกัน: ข้อมูลที่บันทึกจากหน้าจอใช้รูปแบบไทย `"1 ตุลาคม 2569"` ในขณะที่ Tombstone บันทึกเป็น `"2569-10-01"` หรือปี ค.ศ. ทำให้การเปรียบเทียบคีย์ไม่ตรงกัน
+      - **การแก้ไขและปรับปรุง:**
+        1. ย้ายฟังก์ชัน `getLogKey` และ `getTombstoneTimeForLog` ออกมาอยู่นอก `mergeDatasets` เพื่อให้คอมไพล์ผ่านสมบูรณ์ 100%
+        2. เพิ่มฟังก์ชันตรวจจับคีย์ Tombstone ครบทุกรูปแบบ (Canonical `YYYY-MM-DD`, ปี พ.ศ. และ ค.ศ., ข้อความภาษาไทย `ว เดือน ป`, `log.date` และ `log.id`)
+        3. เพิ่มการล้าง Tombstone อัตโนมัติ (`clearTombstone`) เมื่อผู้ใช้บันทึกงานใหม่ของวันนั้น
+        4. คอมไพล์และบิลด์แอปพลิเคชันทุกแพลตฟอร์มใหม่ครบถ้วน:
+           - **Windows:** `OT_Tracker_Setup.exe` (ตัวติดตั้ง NSIS ใหม่ล่าสุด) และ `OT_Tracker_Windows.zip` (Portable)
+           - **macOS:** `OT Tracker.app`, `OT_Tracker_Setup.pkg` (ตัวติดตั้ง Installer) และ `OT_Tracker_macOS.zip`
+           - **Android:** คัดลอกและอัปเดต Web Assets ล่าสุดลงใน `android-app/app/src/main/assets/`
+    - **แก้ไขบั๊กหน้าต่างบันทึกค้างหลังกดลบ (DailyLogModal Modal Freeze Fix):**
+      - **สาเหตุ:** ใน `DailyLogModal.vue` มีการเรียกใช้ `toast.success()` แต่ไม่ได้ import `useToast` จาก `vue-toastification` ทำให้เกิด JavaScript `ReferenceError: toast is not defined` ในทันทีหลังจากที่คำสั่งลบข้อมูล `store.deleteLog()` ทำงานสำเร็จ โค้ดจึงสะดุดหยุดทำงานก่อนที่จะไปถึงบรรทัด `emit('close')` ผลคือ ข้อมูลถูกลบสำเร็จและปุ่มลบหายไปจริง แต่หน้าต่างป็อปอัปไม่ยอมปิดลงมา (ผู้ใช้มองเห็นเป็นอาการค้าง)
+      - **การแก้ไข:**
+        1. เพิ่ม `import { useToast } from 'vue-toastification'` และ `const toast = useToast()` ใน `DailyLogModal.vue`
+        2. ครอบการทำงานของ `handleDelete()`, `handleSave()`, และ `handleSaveAndNext()` ด้วยบล็อก `try / catch / finally` โดยสั่งให้ `emit('close')` อยู่ในบล็อก `finally` เสมอ เพื่อรับประกันว่าหน้าต่าง Modal จะปิดตัวลงอย่างราบรื่นทุกครั้งโดยไม่ค้าง
+        3. คอมไพล์และบิลด์แอปพลิเคชันทุกแพลตฟอร์มใหม่ครบถ้วนอีกครั้งพร้อมใช้งาน
+
 
 
 

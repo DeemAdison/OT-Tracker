@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { useToast } from 'vue-toastification';
 import { useOtStore } from '../stores/otStore';
 import { THAI_MONTHS } from '../services/pdfParser';
 import { getThaiHoliday, isWeekend, calculateCivilServiceOtHours, getCivilServiceReportTimes } from '../services/thaiHolidays';
@@ -12,6 +13,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'next-day']);
 const store = useOtStore();
+const toast = useToast();
 
 const form = ref({
   day: 1,
@@ -290,19 +292,30 @@ function syncToScan() {
 }
 
 async function handleSave() {
-  await store.saveLog({
-    ...form.value,
-    date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
-  });
-  emit('close');
+  try {
+    await store.saveLog({
+      ...form.value,
+      date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
+    });
+  } catch (err) {
+    console.error('Save daily log failed:', err);
+    toast?.error?.('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+  } finally {
+    emit('close');
+  }
 }
 
 // Fast continuous logging: Save & open Next Day
 async function handleSaveAndNext() {
-  await store.saveLog({
-    ...form.value,
-    date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
-  });
+  try {
+    await store.saveLog({
+      ...form.value,
+      date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
+    });
+  } catch (err) {
+    console.error('Save and next failed:', err);
+    toast?.error?.('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+  }
 
   const y = store.currentYear - 543;
   const m = store.currentMonth;
@@ -315,10 +328,16 @@ async function handleSaveAndNext() {
 }
 
 async function handleDelete() {
-  const existing = store.logsByDay[props.day];
-  await store.deleteLog(existing?.id, props.day);
-  toast.success(`ลบรายการวันที่ ${props.day} เรียบร้อยแล้ว`);
-  emit('close');
+  try {
+    const existing = store.logsByDay[props.day];
+    await store.deleteLog(existing?.id, props.day);
+    toast?.success?.(`ลบรายการวันที่ ${props.day} เรียบร้อยแล้ว`);
+  } catch (err) {
+    console.error('Delete daily log failed:', err);
+    toast?.error?.('เกิดข้อผิดพลาดในการลบรายการ');
+  } finally {
+    emit('close');
+  }
 }
 
 // Keyboard shortcuts inside modal

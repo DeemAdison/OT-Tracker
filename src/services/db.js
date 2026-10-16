@@ -198,6 +198,7 @@ export function syncToNativeStorage() {
         dailyLogs: JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY_LOGS) || '[]'),
         attendanceScans: JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY_ATTENDANCE) || '[]'),
         customHolidays: JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS) || '[]'),
+        tombstones: JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY_TOMBSTONES) || '{}'),
         lastSaved: new Date().toISOString()
       };
       window.webkit.messageHandlers.nativeSaveDatabase.postMessage(payload);
@@ -239,6 +240,9 @@ export function applyNativePayload(payload) {
   }
   if (Array.isArray(payload.customHolidays)) {
     localStorage.setItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS, JSON.stringify(payload.customHolidays));
+  }
+  if (payload.tombstones && typeof payload.tombstones === 'object') {
+    localStorage.setItem(LOCAL_STORAGE_KEY_TOMBSTONES, JSON.stringify(payload.tombstones));
   }
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('ot:database_synced'));
@@ -325,6 +329,14 @@ export async function saveDailyLog(log) {
 
   // Clear tombstone so this date can be synced properly
   clearTombstone(item.date);
+  if (item.year && item.month && item.day) {
+    const padM = String(item.month).padStart(2, '0');
+    const padD = String(item.day).padStart(2, '0');
+    clearTombstone(`${item.year}-${padM}-${padD}`);
+    const altY = item.year > 2400 ? item.year - 543 : item.year + 543;
+    clearTombstone(`${altY}-${padM}-${padD}`);
+  }
+  if (item.id) clearTombstone(item.id);
 
   if (isTauriEnv && tauriDb) {
     await tauriDb.execute(`

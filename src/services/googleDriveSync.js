@@ -7,6 +7,7 @@
  */
 
 import { createBackupData, restoreBackupData } from './db';
+import { THAI_MONTHS } from './pdfParser';
 
 export const DEFAULT_CLIENT_ID = '786851092864-sottu7l3vc3pg2pk9cf27gmkj5ik1b6s.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
@@ -404,6 +405,43 @@ export async function updateSyncFile(token, fileId, payload) {
   return await res.json();
 }
 
+export function getLogKey(l) {
+  if (!l) return '';
+  if (l.year && l.month && l.day) {
+    return `${l.year}-${String(l.month).padStart(2, '0')}-${String(l.day).padStart(2, '0')}`;
+  }
+  if (typeof l.date === 'string') {
+    const isoMatch = l.date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
+    }
+  }
+  return l.date || l.id || '';
+}
+
+function getTombstoneTimeForLog(log, tombstones) {
+  if (!log || !tombstones) return 0;
+  const keysToCheck = [];
+  if (log.year && log.month && log.day) {
+    const y = Number(log.year);
+    const m = String(log.month).padStart(2, '0');
+    const d = String(log.day).padStart(2, '0');
+    keysToCheck.push(`${y}-${m}-${d}`);
+    const altY = y > 2400 ? y - 543 : y + 543;
+    keysToCheck.push(`${altY}-${m}-${d}`);
+    if (log.month >= 1 && log.month <= 12) {
+      keysToCheck.push(`${Number(log.day)} ${THAI_MONTHS[log.month - 1]} ${y}`);
+      keysToCheck.push(`${Number(log.day)} ${THAI_MONTHS[log.month - 1]} ${altY}`);
+    }
+  }
+  if (log.date) keysToCheck.push(log.date);
+  if (log.id) keysToCheck.push(log.id);
+
+  const timestamps = keysToCheck.map(k => tombstones[k]).filter(Boolean);
+  if (timestamps.length === 0) return 0;
+  return Math.max(...timestamps.map(t => new Date(t).getTime()));
+}
+
 /**
  * Smart Conflict Resolution & Merge Algorithm
  * Combines local data and cloud data without losing any records
@@ -441,9 +479,6 @@ export function mergeDatasets(local, cloud) {
 
   // 2. Merge Daily Logs (Keyed by unique date string YYYY-MM-DD or log.date)
   const logMap = new Map();
-  
-  // Helper to get normalized date key
-  const getLogKey = (l) => l.date || `${l.year}-${String(l.month).padStart(2, '0')}-${String(l.day).padStart(2, '0')}`;
 
   // Merge tombstones from local and cloud (track deleted records)
   const localTombstones = local.tombstones || {};
@@ -461,21 +496,20 @@ export function mergeDatasets(local, cloud) {
 
   // Populate local logs, filtering out any deleted records
   for (const log of (local.dailyLogs || [])) {
-    const key = getLogKey(log);
-    const tombstoneTime = mergedTombstones[key] ? new Date(mergedTombstones[key]).getTime() : 0;
+    const tombstoneTime = getTombstoneTimeForLog(log, mergedTombstones);
     const logTime = new Date(log.updatedAt || log.createdAt || '1970-01-01').getTime();
     if (tombstoneTime > logTime) {
       // Record was deleted by tombstone
       hasChanges = true;
       continue;
     }
+    const key = getLogKey(log);
     logMap.set(key, log);
   }
 
   // Merge cloud logs
   for (const cLog of (cloud.dailyLogs || [])) {
-    const key = getLogKey(cLog);
-    const tombstoneTime = mergedTombstones[key] ? new Date(mergedTombstones[key]).getTime() : 0;
+    const tombstoneTime = getTombstoneTimeForLog(cLog, mergedTombstones);
     const cTime = new Date(cLog.updatedAt || cLog.createdAt || '1970-01-01').getTime();
 
     if (tombstoneTime > cTime) {
@@ -484,6 +518,7 @@ export function mergeDatasets(local, cloud) {
       continue;
     }
 
+    const key = getLogKey(cLog);
     if (!logMap.has(key)) {
       // Record only exists in cloud -> Add to local
       logMap.set(key, cLog);
