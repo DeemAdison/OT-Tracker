@@ -709,10 +709,15 @@
     - ยืนยันสถาปัตยกรรมระบบ: **ไม่จำกัดเฉพาะเครื่องเดียว** ผู้ใช้สามารถใช้งานพร้อมกันได้หลายอุปกรณ์ (Mac, Windows PC, โน้ตบุ๊ก, แท็บเล็ต/มือถือ)
     - เพียงใช้บัญชี Google บัญชีเดียวกันล็อกอินที่แต่ละเครื่อง ระบบจะดึงและผสานข้อมูล OT (Smart Merge) อัตโนมัติทันที
   - **การแก้ไขปัญหาเมื่อใช้งานเครื่องอื่นไม่ได้ (Troubleshooting Cross-Device / Other Users):**
-    - **กรณีเพื่อนนำไปใช้ (หรือใช้คนละ Google Account):** ติดข้อผิดพลาด `403: access_denied` จาก Google เนื่องจากสถานะแอปเป็น Testing Mode ทางแก้คือ (1) เพิ่ม Gmail เพื่อนลงใน Test Users ใน Google Cloud Console หรือ (2) ให้เพื่อนใช้งานแบบ Local Offline หรือสร้าง Client ID ส่วนตัว
-    - **กรณี Error 400: origin_mismatch บน Windows:** เกิดจากแอปพลิเคชันบน Windows รันบน Local Origin `http://127.0.0.1:53123` ทำให้ Google Identity Services บล็อกเพราะยังไม่ได้ลงทะเบียน Origin ใน Google Cloud Console
+    - **กรณี Error 400: origin_mismatch บน Windows:** เกิดจากแอปพลิเคชันบน Windows รันบน Local Origin `http://127.0.0.1:53123`
       - **วิธีแก้ที่ 1 (เร็วสุด):** ใช้ "วิธีที่ 3: ระบุ Access Token ด้วยตนเอง" คลิก "เปิดหน้าเว็บขอ Token" ล็อกอินแล้วคัดลอกค่า token หลัง `access_token=` มาวาง
       - **วิธีแก้ที่ 2 (ถาวร):** ใน Google Cloud Console (Client ID) หัวข้อ **"Authorized JavaScript origins"** ให้เพิ่ม `http://127.0.0.1:53123` และ `http://localhost:53123`
+    - **กรณี Android (ทั้งแอป APK และเปิดผ่านเบราว์เซอร์):**
+      - เนื่องจาก Google มีนโยบายความปลอดภัยบล็อกการล็อกอิน OAuth ใน Embedded WebView (`disallowed_useragent`) บน Android แนะนำให้ใช้ **"วิธีที่ 3: ระบุ Access Token ด้วยตนเอง"** โดยแตะ "เปิดหน้าเว็บขอ Token" ระบบจะเด้งเปิด Google Chrome บนมือถือให้ล็อกอินอย่างปลอดภัย จากนั้นคัดลอก Access Token มาวาง
+      - สำหรับการลงทะเบียนใน Google Cloud Console (ถ้าใช้แอป APK):
+        - **Authorized JavaScript origins:** `https://appassets.androidplatform.net`
+        - **Authorized redirect URIs:** `https://appassets.androidplatform.net`
+
 
 
 

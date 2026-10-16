@@ -863,6 +863,14 @@ function openDirectAuthLink() {
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://127.0.0.1:42815</code>
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://localhost:42815</code>
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://127.0.0.1:53123</code>
+                        <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">https://appassets.androidplatform.net</code>
+                      </div>
+                    </li>
+                    <li>
+                      <strong>สำหรับแอป Android APK:</strong>
+                      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ในหัวข้อ <strong>"Authorized JavaScript origins"</strong> ให้เพิ่ม:</div>
+                      <div class="mt-1">
+                        <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">https://appassets.androidplatform.net</code>
                       </div>
                     </li>
                   </ul>
