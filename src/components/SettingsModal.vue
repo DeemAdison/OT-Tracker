@@ -842,21 +842,27 @@ function openDirectAuthLink() {
               <div class="text-[11px] text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
                 <div class="p-2.5 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-amber-200/50 dark:border-amber-800/50 space-y-1">
                   <div class="font-bold text-slate-800 dark:text-slate-100 text-xs">
-                    💡 วิธีแก้ปัญหา Error 400 (invalid_request / redirect_uri_mismatch):
+                    💡 วิธีแก้ปัญหา Error 400 (origin_mismatch / redirect_uri_mismatch):
                   </div>
                   <p>
-                    เนื่องจากนโยบายความปลอดภัยใหม่ของ Google จะไม่อนุญาตให้ล็อกอินภายใน Embedded WebView บนแอป Desktop โดยตรง ระบบจึงเปิด Safari/Chrome ให้อัตโนมัติ เพื่อให้ผ่านการยืนยัน ให้ตั้งค่าใน Google Cloud Console อย่างใดอย่างหนึ่งดังนี้:
+                    เนื่องจากนโยบายความปลอดภัยของ Google กำหนดให้ต้องระบุ Origin และ Redirect URI ให้ตรงกับโปรแกรมเป๊ะๆ ให้ตั้งค่าใน Google Cloud Console ดังนี้:
                   </p>
-                  <ul class="list-disc list-inside space-y-1 pl-1 text-[11px]">
+                  <ul class="list-disc list-inside space-y-1.5 pl-1 text-[11px]">
                     <li>
-                      <strong>วิธีที่ 1 (แนะนำที่สุด):</strong> ใน Google Cloud Console ให้สร้าง OAuth Client ID ใหม่ และเลือกประเภทเป็น <strong>"Desktop app" (แอปพลิเคชันเดสก์ท็อป)</strong> แล้วนำ Client ID ใหม่มาวางในช่อง <em>"การตั้งค่าขั้นสูง"</em> ด้านล่าง (ประเภทนี้ Google จะอนุมัติ Loopback Port ทุกพอร์ตอัตโนมัติ ไม่ต้องตั้งค่า Redirect URI)
+                      <strong>แก้ Error 400: origin_mismatch (สำหรับ Windows Desktop):</strong>
+                      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ใน Google Cloud Console หัวข้อ <strong>"Authorized JavaScript origins" (ต้นทางของ JavaScript ที่ได้รับอนุญาต)</strong> ให้กดเพิ่ม:</div>
+                      <div class="mt-1 flex flex-wrap gap-1.5 items-center">
+                        <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://127.0.0.1:53123</code>
+                        <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://localhost:53123</code>
+                      </div>
                     </li>
                     <li>
-                      <strong>วิธีที่ 2 (ใช้ Client ID แบบ Web เดิม):</strong> ให้เข้าไปแก้ไข Client ID ใน Google Cloud Console แล้วในหัวข้อ <strong>"Authorized redirect URIs" (URI การเปลี่ยนเส้นทางที่ได้รับอนุญาต)</strong> ให้เพิ่ม URI ต่อไปนี้:
-                      <div class="mt-1 flex items-center space-x-2">
+                      <strong>สำหรับ macOS และ Redirect URI:</strong>
+                      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ในหัวข้อ <strong>"Authorized redirect URIs" (URI การเปลี่ยนเส้นทางที่ได้รับอนุญาต)</strong> ให้เพิ่ม:</div>
+                      <div class="mt-1 flex flex-wrap gap-1.5 items-center">
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://127.0.0.1:42815</code>
-                        <span class="text-slate-400">และ</span>
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://localhost:42815</code>
+                        <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">http://127.0.0.1:53123</code>
                       </div>
                     </li>
                   </ul>

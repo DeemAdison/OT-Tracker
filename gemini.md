@@ -701,6 +701,20 @@
   1. **Cloud Security:** ไฟล์ฐานข้อมูลถูกจัดเก็บใน `appDataFolder` บน Google Drive ของเจ้าของเพียงผู้เดียว แยกออกจากไฟล์ปกติและไม่มีใครมองเห็นได้
   2. **Device Security:** โปรแกรมมีระบบล็อกหน้าจอด้วยรหัส PIN (4-6 หลัก) ป้องกันไม่ให้บุคคลอื่นแอบเปิดดูข้อมูลบนคอมพิวเตอร์หรือแท็บเล็ต
 
+---
+
+## 6. บันทึกเพิ่มเติม & คำถามที่พบบ่อย (FAQ & Updates)
+- **2026-10-16:**
+  - **การใช้งาน Google Drive ข้ามอุปกรณ์ (Multi-Device Support):**
+    - ยืนยันสถาปัตยกรรมระบบ: **ไม่จำกัดเฉพาะเครื่องเดียว** ผู้ใช้สามารถใช้งานพร้อมกันได้หลายอุปกรณ์ (Mac, Windows PC, โน้ตบุ๊ก, แท็บเล็ต/มือถือ)
+    - เพียงใช้บัญชี Google บัญชีเดียวกันล็อกอินที่แต่ละเครื่อง ระบบจะดึงและผสานข้อมูล OT (Smart Merge) อัตโนมัติทันที
+  - **การแก้ไขปัญหาเมื่อใช้งานเครื่องอื่นไม่ได้ (Troubleshooting Cross-Device / Other Users):**
+    - **กรณีเพื่อนนำไปใช้ (หรือใช้คนละ Google Account):** ติดข้อผิดพลาด `403: access_denied` จาก Google เนื่องจากสถานะแอปเป็น Testing Mode ทางแก้คือ (1) เพิ่ม Gmail เพื่อนลงใน Test Users ใน Google Cloud Console หรือ (2) ให้เพื่อนใช้งานแบบ Local Offline หรือสร้าง Client ID ส่วนตัว
+    - **กรณี Error 400: origin_mismatch บน Windows:** เกิดจากแอปพลิเคชันบน Windows รันบน Local Origin `http://127.0.0.1:53123` ทำให้ Google Identity Services บล็อกเพราะยังไม่ได้ลงทะเบียน Origin ใน Google Cloud Console
+      - **วิธีแก้ที่ 1 (เร็วสุด):** ใช้ "วิธีที่ 3: ระบุ Access Token ด้วยตนเอง" คลิก "เปิดหน้าเว็บขอ Token" ล็อกอินแล้วคัดลอกค่า token หลัง `access_token=` มาวาง
+      - **วิธีแก้ที่ 2 (ถาวร):** ใน Google Cloud Console (Client ID) หัวข้อ **"Authorized JavaScript origins"** ให้เพิ่ม `http://127.0.0.1:53123` และ `http://localhost:53123`
+
+
 
 
 
