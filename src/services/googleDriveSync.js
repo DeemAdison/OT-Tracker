@@ -445,14 +445,45 @@ export function mergeDatasets(local, cloud) {
   // Helper to get normalized date key
   const getLogKey = (l) => l.date || `${l.year}-${String(l.month).padStart(2, '0')}-${String(l.day).padStart(2, '0')}`;
 
-  // Populate local logs
+  // Merge tombstones from local and cloud (track deleted records)
+  const localTombstones = local.tombstones || {};
+  const cloudTombstones = cloud.tombstones || {};
+  const mergedTombstones = { ...cloudTombstones, ...localTombstones };
+  for (const [key, ts] of Object.entries(cloudTombstones)) {
+    if (mergedTombstones[key]) {
+      const cTime = new Date(ts).getTime();
+      const mTime = new Date(mergedTombstones[key]).getTime();
+      if (cTime > mTime) {
+        mergedTombstones[key] = ts;
+      }
+    }
+  }
+
+  // Populate local logs, filtering out any deleted records
   for (const log of (local.dailyLogs || [])) {
-    logMap.set(getLogKey(log), log);
+    const key = getLogKey(log);
+    const tombstoneTime = mergedTombstones[key] ? new Date(mergedTombstones[key]).getTime() : 0;
+    const logTime = new Date(log.updatedAt || log.createdAt || '1970-01-01').getTime();
+    if (tombstoneTime > logTime) {
+      // Record was deleted by tombstone
+      hasChanges = true;
+      continue;
+    }
+    logMap.set(key, log);
   }
 
   // Merge cloud logs
   for (const cLog of (cloud.dailyLogs || [])) {
     const key = getLogKey(cLog);
+    const tombstoneTime = mergedTombstones[key] ? new Date(mergedTombstones[key]).getTime() : 0;
+    const cTime = new Date(cLog.updatedAt || cLog.createdAt || '1970-01-01').getTime();
+
+    if (tombstoneTime > cTime) {
+      // Cloud log was deleted by tombstone -> DO NOT RESURRECT!
+      hasChanges = true;
+      continue;
+    }
+
     if (!logMap.has(key)) {
       // Record only exists in cloud -> Add to local
       logMap.set(key, cLog);
@@ -461,7 +492,6 @@ export function mergeDatasets(local, cloud) {
       // Record exists in both -> compare updatedAt / createdAt
       const lLog = logMap.get(key);
       const lTime = new Date(lLog.updatedAt || lLog.createdAt || '1970-01-01').getTime();
-      const cTime = new Date(cLog.updatedAt || cLog.createdAt || '1970-01-01').getTime();
 
       if (cTime > lTime) {
         logMap.set(key, cLog);
@@ -474,6 +504,7 @@ export function mergeDatasets(local, cloud) {
     }
   }
   merged.dailyLogs = Array.from(logMap.values());
+  merged.tombstones = mergedTombstones;
 
   // 3. Merge Attendance Scans (Keyed by date YYYY-MM-DD)
   const scanMap = new Map();

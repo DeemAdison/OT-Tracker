@@ -15,6 +15,7 @@ import {
   getCustomHolidays,
   saveCustomHoliday as dbSaveCustomHoliday,
   deleteCustomHoliday as dbDeleteCustomHoliday,
+  recordTombstone,
   DEFAULT_SETTINGS
 } from '../services/db';
 import { parseAttendancePdf, THAI_MONTHS } from '../services/pdfParser';
@@ -516,9 +517,18 @@ export const useOtStore = defineStore('ot', {
       return saved;
     },
 
-    async deleteLog(id) {
-      await deleteDailyLog(id);
-      this.dailyLogs = this.dailyLogs.filter(l => l.id !== id);
+    async deleteLog(id, day = null) {
+      const targetDay = (day !== null && day !== undefined) ? Number(day) : (this.dailyLogs.find(l => l.id === id)?.day);
+      await deleteDailyLog(id, targetDay ? { year: this.currentYear, month: this.currentMonth, day: targetDay } : null);
+      this.dailyLogs = this.dailyLogs.filter(l => {
+        if (id && l.id === id) return false;
+        if (targetDay && Number(l.day) === targetDay) return false;
+        return true;
+      });
+      if (targetDay) {
+        const dateKey = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+        recordTombstone(dateKey);
+      }
       this.triggerAutoSync();
     },
 

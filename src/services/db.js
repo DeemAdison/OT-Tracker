@@ -9,6 +9,40 @@ const LOCAL_STORAGE_KEY_SETTINGS = 'ot_tracker_settings';
 const LOCAL_STORAGE_KEY_PRESETS = 'ot_tracker_presets';
 const LOCAL_STORAGE_KEY_ATTENDANCE = 'ot_tracker_attendance';
 const LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS = 'ot_tracker_custom_holidays';
+const LOCAL_STORAGE_KEY_TOMBSTONES = 'ot_tracker_tombstones';
+
+export function getTombstones() {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_TOMBSTONES);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveTombstones(tombstones) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY_TOMBSTONES, JSON.stringify(tombstones || {}));
+  } catch (e) {
+    console.warn('Failed to save tombstones:', e);
+  }
+}
+
+export function recordTombstone(dateKey) {
+  if (!dateKey) return;
+  const tombstones = getTombstones();
+  tombstones[dateKey] = new Date().toISOString();
+  saveTombstones(tombstones);
+}
+
+export function clearTombstone(dateKey) {
+  if (!dateKey) return;
+  const tombstones = getTombstones();
+  if (tombstones[dateKey]) {
+    delete tombstones[dateKey];
+    saveTombstones(tombstones);
+  }
+}
 
 let tauriDb = null;
 let isTauriEnv = false;
@@ -284,9 +318,13 @@ export async function saveDailyLog(log) {
   const item = {
     ...log,
     id: log.id || `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    date: log.date || `${log.year}-${String(log.month).padStart(2, '0')}-${String(log.day).padStart(2, '0')}`,
     createdAt: log.createdAt || nowIso,
     updatedAt: nowIso
   };
+
+  // Clear tombstone so this date can be synced properly
+  clearTombstone(item.date);
 
   if (isTauriEnv && tauriDb) {
     await tauriDb.execute(`
@@ -316,15 +354,32 @@ export async function saveDailyLog(log) {
   return item;
 }
 
-export async function deleteDailyLog(id) {
+export async function deleteDailyLog(id, extraQuery = null) {
   if (isTauriEnv && tauriDb) {
-    await tauriDb.execute('DELETE FROM daily_logs WHERE id = $1', [id]);
+    if (id) {
+      await tauriDb.execute('DELETE FROM daily_logs WHERE id = $1', [id]);
+    }
+    if (extraQuery && extraQuery.year && extraQuery.month && extraQuery.day) {
+      await tauriDb.execute('DELETE FROM daily_logs WHERE year = $1 AND month = $2 AND day = $3', [
+        Number(extraQuery.year), Number(extraQuery.month), Number(extraQuery.day)
+      ]);
+    }
     syncToNativeStorage();
     return true;
   }
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
   const allLogs = raw ? JSON.parse(raw) : [];
-  const filtered = allLogs.filter(l => l.id !== id);
+  const filtered = allLogs.filter(l => {
+    if (id && l.id === id) return false;
+    if (extraQuery && extraQuery.year && extraQuery.month && extraQuery.day) {
+      if (Number(l.year) === Number(extraQuery.year) &&
+          Number(l.month) === Number(extraQuery.month) &&
+          Number(l.day) === Number(extraQuery.day)) {
+        return false;
+      }
+    }
+    return true;
+  });
   localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(filtered));
   syncToNativeStorage();
   return true;
@@ -589,6 +644,7 @@ export async function createBackupData() {
   const dailyLogs = await getAllDailyLogs();
   const attendanceScans = await getAllAttendanceScans();
   const customHolidays = await getCustomHolidays();
+  const tombstones = getTombstones();
 
   return {
     version: '1.0',
@@ -599,12 +655,19 @@ export async function createBackupData() {
     dailyLogs,
     attendanceScans,
     customHolidays,
+    tombstones,
   };
 }
 
 export async function restoreBackupData(backup) {
   if (!backup || typeof backup !== 'object') {
     throw new Error('รูปแบบไฟล์สำรองข้อมูลไม่ถูกต้อง');
+  }
+
+  // Restore tombstones
+  if (backup.tombstones && typeof backup.tombstones === 'object') {
+    const current = getTombstones();
+    saveTombstones({ ...current, ...backup.tombstones });
   }
 
   // Restore Settings

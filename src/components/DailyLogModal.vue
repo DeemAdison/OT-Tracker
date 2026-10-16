@@ -31,52 +31,60 @@ const holidayInfo = computed(() => {
   return store.getDayHolidayInfo(props.day);
 });
 
-// Watch when day opens
+// Function to load log data for specified day
+function populateForm(day) {
+  if (!day) return;
+  const existing = store.logsByDay[day];
+  const scan = store.scansByDay[day];
+
+  if (existing) {
+    form.value = { ...existing };
+    // Safety enforce cap on existing logs (holiday 7h, weekday 4h)
+    const maxH = form.value.dayType === 'holiday' ? 7 : 4;
+    if (form.value.hours > maxH) {
+      form.value.hours = maxH;
+    }
+  } else {
+    // Determine if day is a holiday from store (respects custom overrides)
+    const dayInfo = store.getDayHolidayInfo(day);
+    const isDayHoliday = Boolean(dayInfo?.isHoliday || scan?.dayType === 'holiday' || scan?.remark?.includes('วันหยุด'));
+
+    let defaultStart = isDayHoliday ? '08:30' : '16:30';
+    let defaultEnd = isDayHoliday ? '16:30' : '17:30';
+    let defaultHours = isDayHoliday ? 7 : 1;
+    let dayType = isDayHoliday ? 'holiday' : 'weekday';
+
+    if (scan) {
+      if (scan.otHours > 0) {
+        defaultHours = isDayHoliday ? Math.min(7, scan.otHours) : Math.min(4, scan.otHours);
+        defaultEnd = scan.otEndTime || defaultEnd;
+        if (scan.otStartTime) defaultStart = scan.otStartTime;
+      }
+    }
+
+    form.value = {
+      day,
+      dayType,
+      startTime: defaultStart,
+      endTime: defaultEnd,
+      hours: defaultHours,
+      taskDesc: store.presets[0]?.description || 'ปฏิบัติหน้าที่ตามที่ได้รับมอบหมาย',
+      jid: '',
+      project: '',
+      isClaimed: true,
+      scanIn: scan?.scanIn || '',
+      scanOut: scan?.scanOut || '',
+    };
+  }
+}
+
+// Watch when day opens or modal visibility changes
 watch(
-  () => props.day,
-  (newDay) => {
-    if (!newDay) return;
-    const existing = store.logsByDay[newDay];
-    const scan = store.scansByDay[newDay];
-
-    if (existing) {
-      form.value = { ...existing };
-      // Safety enforce cap on existing logs (holiday 7h, weekday 4h)
-      const maxH = form.value.dayType === 'holiday' ? 7 : 4;
-      if (form.value.hours > maxH) {
-        form.value.hours = maxH;
-      }
-    } else {
-      // Determine if day is a holiday from store (respects custom overrides)
-      const dayInfo = store.getDayHolidayInfo(newDay);
-      const isDayHoliday = Boolean(dayInfo?.isHoliday || scan?.dayType === 'holiday' || scan?.remark?.includes('วันหยุด'));
-
-      let defaultStart = isDayHoliday ? '08:30' : '16:30';
-      let defaultEnd = isDayHoliday ? '16:30' : '17:30';
-      let defaultHours = isDayHoliday ? 7 : 1;
-      let dayType = isDayHoliday ? 'holiday' : 'weekday';
-
-      if (scan) {
-        if (scan.otHours > 0) {
-          defaultHours = isDayHoliday ? Math.min(7, scan.otHours) : Math.min(4, scan.otHours);
-          defaultEnd = scan.otEndTime || defaultEnd;
-          if (scan.otStartTime) defaultStart = scan.otStartTime;
-        }
-      }
-
-      form.value = {
-        day: newDay,
-        dayType,
-        startTime: defaultStart,
-        endTime: defaultEnd,
-        hours: defaultHours,
-        taskDesc: store.presets[0]?.description || 'ปฏิบัติหน้าที่ตามที่ได้รับมอบหมาย',
-        jid: '',
-        project: '',
-        isClaimed: true,
-        scanIn: scan?.scanIn || '',
-        scanOut: scan?.scanOut || '',
-      };
+  [() => props.day, () => props.show],
+  ([newDay, isShown], [oldDay, oldShown] = []) => {
+    // Populate whenever modal becomes visible OR when day changes while modal is visible
+    if (isShown && newDay && (!oldShown || newDay !== oldDay)) {
+      populateForm(newDay);
     }
   },
   { immediate: true }
@@ -308,9 +316,8 @@ async function handleSaveAndNext() {
 
 async function handleDelete() {
   const existing = store.logsByDay[props.day];
-  if (existing && existing.id) {
-    await store.deleteLog(existing.id);
-  }
+  await store.deleteLog(existing?.id, props.day);
+  toast.success(`ลบรายการวันที่ ${props.day} เรียบร้อยแล้ว`);
   emit('close');
 }
 
