@@ -79,4 +79,23 @@ public class WebAppInterface {
             );
         }
     }
+
+    @JavascriptInterface
+    public void startGoogleAuth(String clientId) {
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).startLocalOAuthServer(clientId);
+        }
+    }
+
+    @JavascriptInterface
+    public void openExternalUrl(String url) {
+        if (url == null || url.isEmpty()) return;
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }

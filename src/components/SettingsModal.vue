@@ -237,6 +237,7 @@ async function handleGoogleLogin() {
   } catch (err) {
     console.error('Google login error:', err);
     toast.error(err.message || 'การเชื่อมต่อ Google Drive ล้มเหลว');
+    showManualTokenSection.value = true;
   } finally {
     isConnectingCloud.value = false;
   }
@@ -319,7 +320,11 @@ async function handleSaveManualToken() {
 
 function openDirectAuthLink() {
   const url = store.getOAuthUrl();
-  window.open(url, '_blank');
+  if (typeof window !== 'undefined' && window.Android?.openExternalUrl) {
+    window.Android.openExternalUrl(url);
+  } else {
+    window.open(url, '_blank');
+  }
 }
 </script>
 
@@ -880,7 +885,11 @@ function openDirectAuthLink() {
                       </div>
                     </li>
                     <li>
-                      <strong>สำหรับแอป Android APK:</strong>
+                      <strong>สำหรับแอปมือถือ Android (.apk):</strong>
+                      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ในเวอร์ชันล่าสุด เมื่อกดปุ่ม <strong>"เชื่อมต่อกับ Google Drive"</strong> ระบบจะเปิดเบราว์เซอร์ Chrome บนมือถือเพื่อล็อกอินอย่างปลอดภัย และดึงข้อมูลกลับมาซิงค์ในแอปอัตโนมัติ 100% ไม่ติดบล็อก WebView</div>
+                    </li>
+                    <li>
+                      <strong>สำหรับแอป Android APK ใน Google Cloud Console:</strong>
                       <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ในหัวข้อ <strong>"Authorized JavaScript origins"</strong> ให้เพิ่ม:</div>
                       <div class="mt-1">
                         <code class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-mono text-[10px] select-all">https://appassets.androidplatform.net</code>

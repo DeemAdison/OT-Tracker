@@ -796,6 +796,22 @@
            - macOS: `OT Tracker.app`, `OT_Tracker_Setup.pkg`, `OT_Tracker_macOS.zip`
            - Windows: `OT_Tracker_Setup.exe`, `OT_Tracker_Windows.zip`
            - Android: ซิงค์ Assets ล่าสุดลงใน `android-app/app/src/main/assets/`
+    - **ระบบรองรับการเชื่อมต่อ Google Drive บนมือถือ Android 100% (Android Native OAuth Loopback Engine):**
+      - **สาเหตุที่เกิดขึ้น:**
+        1. Google มีนโยบายความปลอดภัยขั้นสูง โดยไม่อนุญาตให้ล็อกอิน OAuth ผ่าน Embedded WebView บน Android และ iOS อีกต่อไป (`403: disallowed_useragent`)
+        2. ในแอป Android (`MainActivity.java`) ไม่ได้เปิดคุณสมบัติ `setSupportMultipleWindows(true)` และไม่ได้ implement `onCreateWindow` ทำให้เมื่อสคริปต์ Google Identity Services (GIS) พยายามเปิดหน้าต่างยืนยันตัวตน ตัว WebView จะไม่แสดงผลอะไรเลย (Silent Failure)
+        3. ใน `googleDriveSync.js` มีเฉพาะ Native Bridge สำหรับ macOS (`window.webkit.messageHandlers.nativeGoogleAuth`) แต่ยังไม่มี Bridge สำหรับ Android (`window.Android.startGoogleAuth`) ทำให้แอปพลิเคชันบน Android ตกไปใช้โหมด GIS บน WebView ซึ่งถูกบล็อก
+      - **การแก้ไขและสถาปัตยกรรมใหม่บน Android (Android Native OAuth Architecture):**
+        1. **สร้าง Native OAuth Loopback Server ใน Android (`MainActivity.java`):**
+           - เมื่อผู้ใช้กด "เชื่อมต่อกับ Google Drive" ในแอป Android ระบบจะเปิด Background ServerSocket รับข้อมูลที่ `127.0.0.1:42815` (พอร์ตเดียวกับ macOS และได้รับอนุญาตใน Google Cloud Console อยู่แล้ว 100%)
+           - สั่งเปิด System Browser (เช่น Google Chrome บนมือถือ) ผ่าน `Intent.ACTION_VIEW` ไปยังหน้าล็อกอินทางการของ Google ซึ่ง Google อนุญาตให้ล็อกอินอย่างปลอดภัย ไม่ติด Error `disallowed_useragent`
+           - เมื่อผู้ใช้เลือกบัญชี Google เสร็จสิ้น Chrome จะ Redirect กลับมาที่ `http://127.0.0.1:42815#access_token=...`
+           - เซิร์ฟเวอร์ในแอปจะจับ Token จาก Chrome อัตโนมัติ ส่งต่อไปยัง WebView ด้วย `window.__onGoogleDriveAuthSuccess(token)` และดึงแอป OT Tracker กลับขึ้นมาข้างหน้าจอทันที (Auto-Foreground Switch) โดยที่ผู้ใช้ไม่ต้องคัดลอก Token เอง
+        2. **ปรับปรุง `WebAppInterface.java`:** เพิ่ม JavascriptInterface `startGoogleAuth(clientId)` และ `openExternalUrl(url)`
+        3. **ปรับปรุง `WebChromeClient` (`MainActivity.java`):** เพิ่ม `onCreateWindow` และเปิด `setSupportMultipleWindows(true)` เพื่อรองรับการเปิดลิงก์ภายนอก
+        4. **ปรับปรุง `googleDriveSync.js`:** เพิ่มตัวดักจับ `window.Android?.startGoogleAuth` เชื่อมโยงกับ Native Android Bridge
+        5. **ปรับปรุง UI และคำแนะนำ (`SettingsModal.vue`):** เปิดแสดงส่วนช่วยเหลือทันทีหากพบปัญหา พร้อมคำแนะนำสำหรับผู้ใช้งานผ่านเว็บเบราว์เซอร์บนวง LAN
+        6. **อัปเดต Assets และแพ็กเกจทุกระบบ:** ซิงค์เว็บแอสเซทลงใน `android-app/app/src/main/assets/` และคอมไพล์ตัวติดตั้ง Desktop ครบถ้วน
 
 
 

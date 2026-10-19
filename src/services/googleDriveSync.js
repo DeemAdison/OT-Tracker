@@ -141,6 +141,34 @@ export async function requestGoogleAccessToken({ prompt = '' } = {}) {
     });
   }
 
+  // If running inside Android Native App: Use System Browser + Loopback Server via window.Android
+  if (typeof window !== 'undefined' && window.Android?.startGoogleAuth) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        window.__onGoogleDriveAuthSuccess = null;
+        reject(new Error('หมดเวลาการรอเข้าสู่ระบบจากเบราว์เซอร์ (โปรดลองใหม่อีกครั้ง)'));
+      }, 120000); // 2 minutes
+
+      window.__onGoogleDriveAuthSuccess = (token) => {
+        clearTimeout(timeout);
+        window.__onGoogleDriveAuthSuccess = null;
+        if (!token) return reject(new Error('ไม่ได้รับ Access Token'));
+        const expiresInSec = 3500;
+        const expiresAt = Date.now() + (expiresInSec * 1000) - 60000;
+        localStorage.setItem(KEY_ACCESS_TOKEN, token);
+        localStorage.setItem(KEY_TOKEN_EXPIRES_AT, String(expiresAt));
+        resolve(token);
+      };
+
+      try {
+        window.Android.startGoogleAuth(getClientId());
+      } catch (err) {
+        clearTimeout(timeout);
+        reject(err);
+      }
+    });
+  }
+
   // Web / Tablet Browser fallback using Google Identity Services (GIS)
   const oauth2 = await waitForGis();
   const clientId = getClientId();
