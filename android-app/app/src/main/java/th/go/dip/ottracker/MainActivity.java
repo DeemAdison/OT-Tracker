@@ -18,7 +18,9 @@ import android.webkit.WebViewClient;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import android.webkit.JsResult;
 import androidx.webkit.WebViewAssetLoader;
 
 public class MainActivity extends AppCompatActivity {
@@ -114,6 +116,29 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, final JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("ระบบบันทึก OT")
+                        .setMessage(message)
+                        .setPositiveButton("ตกลง", (dialog, which) -> result.confirm())
+                        .setOnCancelListener(dialog -> result.confirm())
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, final JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("ยืนยันการดำเนินการ")
+                        .setMessage(message)
+                        .setPositiveButton("ตกลง", (dialog, which) -> result.confirm())
+                        .setNegativeButton("ยกเลิก", (dialog, which) -> result.cancel())
+                        .setOnCancelListener(dialog -> result.cancel())
+                        .show();
+                return true;
+            }
+
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
                 Log.d(TAG, consoleMessage.message() + " -- Line "

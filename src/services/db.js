@@ -286,10 +286,13 @@ export async function saveSettings(settings) {
 
 // ---------------- Daily Logs ----------------
 export async function getDailyLogs(year, month) {
+  const targetYear = Number(year);
+  const targetMonth = Number(month);
+
   if (isTauriEnv && tauriDb) {
     const rows = await tauriDb.select(
-      'SELECT * FROM daily_logs WHERE year = $1 AND month = $2 ORDER BY day ASC',
-      [year, month]
+      'SELECT * FROM daily_logs WHERE (year = $1 OR year = $1 - 543 OR year = $1 + 543) AND month = $2 ORDER BY day ASC',
+      [targetYear, targetMonth]
     );
     return rows.map(r => ({
       id: r.id,
@@ -309,12 +312,19 @@ export async function getDailyLogs(year, month) {
       isClaimed: Boolean(r.is_claimed),
       scanIn: r.scan_in,
       scanOut: r.scan_out,
-      createdAt: r.created_at
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
     }));
   }
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
   const allLogs = raw ? JSON.parse(raw) : [];
-  return allLogs.filter(l => l.year === year && l.month === month).sort((a, b) => a.day - b.day);
+  return allLogs.filter(l => {
+    const lY = Number(l.year);
+    const lM = Number(l.month);
+    const yearMatch = lY === targetYear || lY + 543 === targetYear || lY - 543 === targetYear;
+    const monthMatch = lM === targetMonth;
+    return yearMatch && monthMatch;
+  }).sort((a, b) => Number(a.day) - Number(b.day));
 }
 
 export async function saveDailyLog(log) {
@@ -671,39 +681,116 @@ export async function createBackupData() {
   };
 }
 
-export async function restoreBackupData(backup) {
-  if (!backup || typeof backup !== 'object') {
+export async function restoreBackupData(rawBackup) {
+  if (!rawBackup || typeof rawBackup !== 'object') {
     throw new Error('รูปแบบไฟล์สำรองข้อมูลไม่ถูกต้อง');
   }
 
-  // Restore tombstones
-  if (backup.tombstones && typeof backup.tombstones === 'object') {
-    const current = getTombstones();
-    saveTombstones({ ...current, ...backup.tombstones });
+  // Support array of logs directly or wrapped data
+  let backup = rawBackup;
+  if (Array.isArray(rawBackup)) {
+    backup = { dailyLogs: rawBackup };
+  } else if (rawBackup.data && typeof rawBackup.data === 'object' && !Array.isArray(rawBackup.data)) {
+    backup = { ...rawBackup.data, ...rawBackup };
   }
 
+  // Normalize fields: support alternative keys
+  const settings = backup.settings || backup.ot_tracker_settings || null;
+  const presets = backup.presets || backup.taskPresets || backup.task_presets || backup.ot_tracker_presets || null;
+  const rawLogs = backup.dailyLogs || backup.daily_logs || backup.logs || backup.ot_tracker_daily_logs || null;
+  const rawScans = backup.attendanceScans || backup.attendance_scans || backup.scans || backup.ot_tracker_attendance || null;
+  const rawHolidays = backup.customHolidays || backup.custom_holidays || backup.holidays || backup.ot_tracker_custom_holidays || null;
+  const rawTombstones = backup.tombstones || backup.ot_tracker_tombstones || {};
+
+  const nowIso = new Date().toISOString();
+
+  // Normalize Daily Logs items (support both camelCase and snake_case)
+  const dailyLogs = Array.isArray(rawLogs) ? rawLogs.map(l => {
+    let y = Number(l.year) || (l.date ? parseInt(l.date.split('-')[0], 10) : 0);
+    const m = Number(l.month) || (l.date ? parseInt(l.date.split('-')[1], 10) : 0);
+    const d = Number(l.day) || (l.date ? parseInt(l.date.split('-')[2], 10) : 0);
+    // Normalize CE year (e.g. 2026) to BE (2569) to align with app display
+    if (y && y < 2400) {
+      y = y + 543;
+    }
+    return {
+      id: l.id || `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      date: l.date || (y && m && d ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : ''),
+      year: y,
+      month: m,
+      day: d,
+      dayType: l.dayType || l.day_type || 'weekday',
+      startTime: l.startTime || l.start_time || '16:30',
+      endTime: l.endTime || l.end_time || '17:30',
+      hours: Number(l.hours) || 0,
+      rate: Number(l.rate) || 50,
+      amount: Number(l.amount) || 0,
+      taskDesc: l.taskDesc || l.task_desc || '',
+      jid: l.jid || '',
+      project: l.project || '',
+      isClaimed: l.isClaimed !== undefined ? Boolean(l.isClaimed) : (l.is_claimed !== undefined ? Boolean(l.is_claimed) : true),
+      scanIn: l.scanIn || l.scan_in || '',
+      scanOut: l.scanOut || l.scan_out || '',
+      createdAt: l.createdAt || l.created_at || nowIso,
+      updatedAt: nowIso // Freshly restored right now - guarantees priority over previous tombstones!
+    };
+  }) : null;
+
+  // Clear existing tombstones that might conflict with restored logs
+  const targetTombstones = typeof rawTombstones === 'object' ? { ...rawTombstones } : {};
+  if (dailyLogs) {
+    for (const l of dailyLogs) {
+      if (l.date) {
+        delete targetTombstones[l.date];
+        clearTombstone(l.date);
+      }
+      if (l.year && l.month && l.day) {
+        const padM = String(l.month).padStart(2, '0');
+        const padD = String(l.day).padStart(2, '0');
+        const beKey = `${l.year}-${padM}-${padD}`;
+        delete targetTombstones[beKey];
+        clearTombstone(beKey);
+        const altY = l.year > 2400 ? l.year - 543 : l.year + 543;
+        const ceKey = `${altY}-${padM}-${padD}`;
+        delete targetTombstones[ceKey];
+        clearTombstone(ceKey);
+      }
+      if (l.id) {
+        delete targetTombstones[l.id];
+        clearTombstone(l.id);
+      }
+    }
+  }
+  saveTombstones(targetTombstones);
+
   // Restore Settings
-  if (backup.settings && typeof backup.settings === 'object') {
-    await saveSettings(backup.settings);
+  if (settings && typeof settings === 'object') {
+    await saveSettings(settings);
   }
 
   // Restore Presets
-  if (Array.isArray(backup.presets)) {
+  if (Array.isArray(presets)) {
+    const normPresets = presets.map((p, idx) => ({
+      id: p.id || `preset_${idx + 1}`,
+      title: p.title || '',
+      description: p.description || ''
+    }));
+
     if (isTauriEnv && tauriDb) {
       await tauriDb.execute('DELETE FROM task_presets');
-      for (const p of backup.presets) {
+      for (const p of normPresets) {
         await tauriDb.execute('INSERT OR REPLACE INTO task_presets (id, title, description) VALUES ($1, $2, $3)', [p.id, p.title, p.description]);
       }
     } else {
-      localStorage.setItem(LOCAL_STORAGE_KEY_PRESETS, JSON.stringify(backup.presets));
+      localStorage.setItem(LOCAL_STORAGE_KEY_PRESETS, JSON.stringify(normPresets));
     }
   }
 
   // Restore Daily Logs
-  if (Array.isArray(backup.dailyLogs)) {
+  if (Array.isArray(dailyLogs)) {
     if (isTauriEnv && tauriDb) {
       await tauriDb.execute('DELETE FROM daily_logs');
-      for (const l of backup.dailyLogs) {
+      for (const l of dailyLogs) {
         await tauriDb.execute(`
           INSERT OR REPLACE INTO daily_logs 
           (id, date, year, month, day, day_type, start_time, end_time, hours, rate, amount, task_desc, jid, project, is_claimed, scan_in, scan_out, created_at)
@@ -711,54 +798,78 @@ export async function restoreBackupData(backup) {
         `, [
           l.id, l.date, l.year, l.month, l.day, l.dayType,
           l.startTime, l.endTime, l.hours, l.rate, l.amount,
-          l.taskDesc, l.jid || '', l.project || '',
-          l.isClaimed ? 1 : 0, l.scanIn || '', l.scanOut || '', l.createdAt || new Date().toISOString()
+          l.taskDesc, l.jid, l.project,
+          l.isClaimed ? 1 : 0, l.scanIn, l.scanOut, l.createdAt
         ]);
       }
     } else {
-      localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(backup.dailyLogs));
+      localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(dailyLogs));
     }
   }
 
   // Restore Attendance Scans
-  if (Array.isArray(backup.attendanceScans)) {
+  if (Array.isArray(rawScans)) {
+    const attendanceScans = rawScans.map(s => ({
+      id: s.id || `scan_${s.year}_${s.month}_${s.day}`,
+      date: s.date || `${s.year}-${String(s.month).padStart(2, '0')}-${String(s.day).padStart(2, '0')}`,
+      year: Number(s.year),
+      month: Number(s.month),
+      day: Number(s.day),
+      scanIn: s.scanIn || s.scan_in || '',
+      scanOut: s.scanOut || s.scan_out || '',
+      workHours: s.workHours || s.work_hours || '',
+      remark: s.remark || ''
+    }));
+
     if (isTauriEnv && tauriDb) {
       await tauriDb.execute('DELETE FROM attendance_scans');
-      for (const s of backup.attendanceScans) {
+      for (const s of attendanceScans) {
         await tauriDb.execute(`
           INSERT OR REPLACE INTO attendance_scans (id, date, year, month, day, scan_in, scan_out, work_hours, remark)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           s.id, s.date, s.year, s.month, s.day,
-          s.scanIn || '', s.scanOut || '', s.workHours || '', s.remark || ''
+          s.scanIn, s.scanOut, s.workHours, s.remark
         ]);
       }
     } else {
-      localStorage.setItem(LOCAL_STORAGE_KEY_ATTENDANCE, JSON.stringify(backup.attendanceScans));
+      localStorage.setItem(LOCAL_STORAGE_KEY_ATTENDANCE, JSON.stringify(attendanceScans));
     }
   }
 
   // Restore Custom Holidays
-  if (Array.isArray(backup.customHolidays)) {
+  if (Array.isArray(rawHolidays)) {
+    const customHolidays = rawHolidays.map(h => ({
+      id: h.id || `hol_${h.year}_${h.month}_${h.day}`,
+      date: h.date || `${h.year}-${String(h.month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`,
+      year: Number(h.year),
+      month: Number(h.month),
+      day: Number(h.day),
+      name: h.name || '',
+      isHoliday: h.isHoliday !== undefined ? Boolean(h.isHoliday) : (h.is_holiday !== undefined ? Boolean(h.is_holiday) : true)
+    }));
+
     if (isTauriEnv && tauriDb) {
       await tauriDb.execute('DELETE FROM custom_holidays');
-      for (const h of backup.customHolidays) {
+      for (const h of customHolidays) {
         await tauriDb.execute(`
           INSERT OR REPLACE INTO custom_holidays (id, date, year, month, day, name, is_holiday)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
         `, [h.id, h.date, h.year, h.month, h.day, h.name, h.isHoliday ? 1 : 0]);
       }
     } else {
-      localStorage.setItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS, JSON.stringify(backup.customHolidays));
+      localStorage.setItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS, JSON.stringify(customHolidays));
     }
   }
 
   syncToNativeStorage();
+
   return {
     success: true,
-    logsCount: backup.dailyLogs ? backup.dailyLogs.length : 0,
-    scansCount: backup.attendanceScans ? backup.attendanceScans.length : 0,
-    holidaysCount: backup.customHolidays ? backup.customHolidays.length : 0
+    logsCount: dailyLogs ? dailyLogs.length : 0,
+    firstLog: dailyLogs && dailyLogs.length > 0 ? dailyLogs[0] : null,
+    scansCount: rawScans ? rawScans.length : 0,
+    holidaysCount: rawHolidays ? rawHolidays.length : 0
   };
 }
 

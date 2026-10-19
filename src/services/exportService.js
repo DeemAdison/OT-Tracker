@@ -486,10 +486,54 @@ export async function exportDatabaseBackup() {
 /**
  * 4. Import Database Backup: Reads and validates a JSON backup file and restores all data
  */
+function readBlobAsText(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || '');
+    reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์สำรองข้อมูลได้'));
+    reader.readAsText(blob, 'utf-8');
+  });
+}
+
 export async function importDatabaseBackup(file) {
   if (!file) throw new Error('กรุณาเลือกไฟล์สำรองข้อมูล');
-  const text = await file.text();
-  const parsed = JSON.parse(text);
+
+  let text = '';
+  if (typeof file === 'string') {
+    text = file;
+  } else if (file && typeof file.text === 'function') {
+    try {
+      text = await file.text();
+    } catch {
+      text = await readBlobAsText(file);
+    }
+  } else if (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File)) {
+    text = await readBlobAsText(file);
+  } else {
+    throw new Error('ชนิดไฟล์ไม่ถูกต้อง');
+  }
+
+  // Strip UTF-8 BOM if present and trim whitespace
+  text = text.replace(/^\uFEFF/, '').trim();
+
+  if (!text) {
+    throw new Error('ไฟล์สำรองข้อมูลว่างเปล่า');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    throw new Error(`ไฟล์นี้ไม่ใช่ไฟล์ JSON หรือรูปแบบข้อมูลเสียหาย (${err.message})`);
+  }
+
+  // If double-encoded as JSON string, parse inner layer
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {}
+  }
+
   return await restoreBackupData(parsed);
 }
 

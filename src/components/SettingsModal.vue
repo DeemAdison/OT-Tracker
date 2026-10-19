@@ -178,36 +178,49 @@ function triggerRestorePicker() {
   }
 }
 
-async function handleRestoreFile(event) {
+const pendingRestoreFile = ref(null);
+const showClearConfirm = ref(false);
+
+function handleRestoreFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  pendingRestoreFile.value = file;
+}
 
-  if (!confirm(`คุณต้องการกู้คืนข้อมูลจากไฟล์ "${file.name}" ใช่หรือไม่?\nข้อมูลที่มีอยู่เดิมจะถูกแทนที่ด้วยข้อมูลจากไฟล์สำรอง`)) {
-    event.target.value = '';
-    return;
-  }
-
+async function confirmAndRestore() {
+  if (!pendingRestoreFile.value) return;
+  const file = pendingRestoreFile.value;
   isRestoring.value = true;
   try {
     const result = await store.restoreData(file);
     toast.success(`กู้คืนข้อมูลสำเร็จ (${result.logsCount} รายการบันทึก OT)`);
     profileForm.value = { ...store.settings };
+    pendingRestoreFile.value = null;
     emit('close');
   } catch (err) {
     console.error('Restore error:', err);
-    toast.error('ไฟล์สำรองไม่ถูกต้องหรือไม่สามารถกู้คืนได้');
+    toast.error(err.message || 'ไฟล์สำรองไม่ถูกต้องหรือไม่สามารถกู้คืนได้');
   } finally {
     isRestoring.value = false;
-    event.target.value = '';
+    pendingRestoreFile.value = null;
+    if (restoreFileInput.value) restoreFileInput.value.value = '';
   }
 }
 
-async function handleClearDatabase() {
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลบันทึก OT และข้อมูลสแกนเวลาทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้')) {
-    await store.clearDatabase();
-    toast.info('ล้างข้อมูลในระบบเรียบร้อยแล้ว');
-    emit('close');
-  }
+function cancelRestore() {
+  pendingRestoreFile.value = null;
+  if (restoreFileInput.value) restoreFileInput.value.value = '';
+}
+
+function handleClearDatabase() {
+  showClearConfirm.value = true;
+}
+
+async function confirmAndClearDatabase() {
+  await store.clearDatabase();
+  toast.info('ล้างข้อมูลในระบบเรียบร้อยแล้ว');
+  showClearConfirm.value = false;
+  emit('close');
 }
 
 // ---------------- Cloud Sync Handlers ----------------
@@ -1158,7 +1171,7 @@ function openDirectAuthLink() {
                 ref="restoreFileInput"
                 @change="handleRestoreFile"
                 type="file" 
-                accept=".json,application/json" 
+                accept=".json,application/json,text/plain,*/*" 
                 class="hidden" 
               />
             </div>
@@ -1206,6 +1219,76 @@ function openDirectAuthLink() {
             <Save class="w-4 h-4" />
             <span>บันทึกการตั้งค่า</span>
           </button>
+        </div>
+      </div>
+
+      <!-- In-App Restore Confirmation Dialog -->
+      <div v-if="pendingRestoreFile" class="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
+          <div class="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle class="w-6 h-6" />
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">ยืนยันการกู้คืนข้อมูล</h3>
+            <p class="text-xs text-slate-600 dark:text-slate-300 mt-2">
+              คุณต้องการกู้คืนข้อมูลจากไฟล์ <span class="font-semibold text-amber-600 dark:text-amber-400">"{{ pendingRestoreFile.name }}"</span> ใช่หรือไม่?
+            </p>
+            <p class="text-[11px] text-slate-400 mt-1">
+              ข้อมูลบันทึก OT และการตั้งค่าเดิมในเครื่องจะถูกแทนที่ด้วยข้อมูลจากไฟล์สำรอง
+            </p>
+          </div>
+          <div class="flex items-center justify-center space-x-3 pt-2">
+            <button 
+              @click="cancelRestore"
+              type="button" 
+              class="px-4 py-2 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 cursor-pointer transition active:scale-95"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              @click="confirmAndRestore"
+              :disabled="isRestoring"
+              type="button" 
+              class="px-4 py-2 text-xs font-bold rounded-xl text-white bg-amber-600 hover:bg-amber-700 cursor-pointer shadow-sm transition active:scale-95 flex items-center space-x-1"
+            >
+              <span v-if="isRestoring">กำลังกู้คืน...</span>
+              <span v-else>ยืนยันกู้คืนข้อมูล</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- In-App Clear Database Confirmation Dialog -->
+      <div v-if="showClearConfirm" class="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
+          <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 flex items-center justify-center mx-auto">
+            <Trash2 class="w-6 h-6" />
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">ยืนยันการล้างข้อมูลทั้งหมด</h3>
+            <p class="text-xs text-slate-600 dark:text-slate-300 mt-2">
+              คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลบันทึก OT และข้อมูลสแกนเวลาทั้งหมด?
+            </p>
+            <p class="text-[11px] text-red-500 mt-1">
+              * การกระทำนี้ไม่สามารถย้อนกลับได้ กรุณาสำรองข้อมูลไว้ก่อนหากจำเป็น
+            </p>
+          </div>
+          <div class="flex items-center justify-center space-x-3 pt-2">
+            <button 
+              @click="showClearConfirm = false"
+              type="button" 
+              class="px-4 py-2 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 cursor-pointer transition active:scale-95"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              @click="confirmAndClearDatabase"
+              type="button" 
+              class="px-4 py-2 text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 cursor-pointer shadow-sm transition active:scale-95"
+            >
+              ยืนยันล้างข้อมูล
+            </button>
+          </div>
         </div>
       </div>
 

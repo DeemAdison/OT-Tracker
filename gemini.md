@@ -756,6 +756,48 @@
         1. เพิ่ม `import { useToast } from 'vue-toastification'` และ `const toast = useToast()` ใน `DailyLogModal.vue`
         2. ครอบการทำงานของ `handleDelete()`, `handleSave()`, และ `handleSaveAndNext()` ด้วยบล็อก `try / catch / finally` โดยสั่งให้ `emit('close')` อยู่ในบล็อก `finally` เสมอ เพื่อรับประกันว่าหน้าต่าง Modal จะปิดตัวลงอย่างราบรื่นทุกครั้งโดยไม่ค้าง
         3. คอมไพล์และบิลด์แอปพลิเคชันทุกแพลตฟอร์มใหม่ครบถ้วนอีกครั้งพร้อมใช้งาน
+    - **แก้ไขปัญหานำเข้าไฟล์สำรองข้อมูล JSON ไม่ได้ (JSON Backup Import Fix):**
+      - **สาเหตุที่เกิดขึ้น:**
+        1. **macOS Native App Open Panel บล็อกไฟล์ .json:** ใน `macos-app/main.m` มีการล็อก `panel.allowedFileTypes = @[@"pdf"]` สำหรับ `<input type="file">` ทำให้หน้าต่างเลือกไฟล์บน macOS บังคับให้เลือกได้เฉพาะไฟล์ PDF เท่านั้น ไฟล์นามสกุล `.json` ทั้งหมดจึงถูกปิดใช้งาน (Greyed out) เลือกไม่ได้
+        2. **UTF-8 BOM (Byte Order Mark) บน Windows:** ไฟล์ JSON ที่ถูกบันทึกหรือเปิดดูด้วย Notepad บน Windows จะมีอักขระพิเศษ `\uFEFF` นำหน้า ทำให้คำสั่ง `JSON.parse()` เกิด SyntaxError ล้มเหลวทันที
+        3. **โครงสร้างข้อมูลในไฟล์ Backup:** ไฟล์สำรองบางเวอร์ชันอาจเป็น Array ของบันทึกโดยตรง หรือมีคีย์เป็น snake_case (`daily_logs`, `start_time`, `end_time` ฯลฯ) ซึ่งโค้ดเดิมรองรับเฉพาะ Object camelCase
+        4. **Tombstone ชนกับข้อมูลที่กู้คืน:** หากเครื่องมี Tombstone ที่เพิ่งลบไป ข้อมูลเก่าใน Backup ที่มีวันที่เดียวกันจะถูก Tombstone ลบทิ้งซ้ำทันที
+        5. **MIME Type บน Android/Windows:** ตัวเลือกไฟล์เดิมระบุ `accept=".json,application/json"` ซึ่งใน Android หรือ Windows ไฟล์ที่โหลดจากเน็ตมักมี MIME เป็น `text/plain` หรือ `application/octet-stream` ทำให้ระบบปฏิบัติการกรองไฟล์ .json ออก
+      - **การแก้ไขและปรับปรุง:**
+        1. **ปลดล็อก macOS Open Panel (`macos-app/main.m`):** เปลี่ยน `panel.allowedFileTypes = nil;` ให้ผู้ใช้เลือกไฟล์ได้ทุกประเภท ทั้ง PDF และ JSON
+        2. **เพิ่มระบบอ่านไฟล์สำรองและตัด BOM (`exportService.js`):** เพิ่มฟังก์ชัน `readBlobAsText` (FileReader Fallback), ลบ UTF-8 BOM (`\uFEFF`) อัตโนมัติ, ตรวจจับ JSON ซ้อน และแสดงข้อความ Error ที่ชัดเจน
+        3. **ยกระดับ `restoreBackupData` (`db.js`):**
+           - รองรับทั้ง Backup แบบ Object และ Array logs โดยตรง
+           - แปลงคีย์ camelCase และ snake_case ให้อัตโนมัติ
+           - ล้าง Tombstone ของวันที่ถูกกู้คืนออกจากเครื่อง เพื่อไม่ให้ระบบซิงค์เข้าใจผิดและลบข้อมูลที่เพิ่งกู้คืน
+           - สั่งซิงค์ลง Native Storage ทันที
+        4. **ขยาย Accept Type ใน `SettingsModal.vue`:** ปรับเป็น `accept=".json,application/json,text/plain,*/*"` ให้เลือกไฟล์ได้บนทุกระบบปฏิบัติการ
+        5. **คอมไพล์และบิลด์แอปพลิเคชันทุกแพลตฟอร์มใหม่ครบถ้วน:** macOS (`.app`, `.pkg`, `.zip`), Windows (`.exe`, `.zip`) และ Android (Assets)
+    - **แก้ไขปัญหากล่องยืนยัน confirm() คืนค่า false ทันทีบน macOS และ Android (In-App Confirmation Modal):**
+      - **สาเหตุที่เกิดขึ้น:** ใน WKWebView บน macOS (`macos-app/main.m`) และ WebChromeClient บน Android (`MainActivity.java`) ไม่ได้ทำการ override เมธอด `runJavaScriptConfirmPanelWithMessage` / `onJsConfirm` ตามข้อกำหนดของ WebKit หากไม่มีการ implement เมธอดนี้ คำสั่ง `window.confirm()` จะคืนค่า `false` โดยอัตโนมัติทันที ทำให้โค้ด `if (!confirm(...)) return;` หยุดทำงานทันทีหลังจากเลือกไฟล์เสร็จ (เสมือนผู้ใช้กดยกเลิก) ส่งผลให้ไม่มีอะไรเกิดขึ้นเลย
+      - **การแก้ไข:**
+        1. **สร้าง In-App Confirmation Modal ใน Vue (`SettingsModal.vue`):** เปลี่ยนมาใช้กล่องยืนยันที่สร้างด้วย Vue ในหน้าแอปโดยตรง (`pendingRestoreFile`) แสดงชื่อไฟล์และปุ่ม "ยืนยันกู้คืนข้อมูล" อย่างสวยงาม 100% ไม่ต้องพึ่งพา dialog ของระบบปฏิบัติการ และไม่มีทางถูกบล็อก
+        2. **Implement Native Confirm Handler:** เพิ่ม `runJavaScriptConfirmPanelWithMessage` ใน `macos-app/main.m` (ใช้ NSAlert พร้อมปุ่ม ตกลง/ยกเลิก) และ `onJsConfirm` ใน `MainActivity.java` (ใช้ Android AlertDialog)
+        3. **คอมไพล์และบิลด์ใหม่ครบทุกแพลตฟอร์ม**
+    - **แก้ไขปัญหาข้อมูลวันที่ 1 หายไปหลังกู้คืนไฟล์ JSON (Tombstone Cloud Overwrite & Timestamp Resurrection Fix):**
+      - **สาเหตุที่เกิดขึ้น:**
+        1. เมื่อผู้ใช้ทดสอบกดลบวันที่ 1 ในวันก่อนหน้า ระบบได้สร้างบันทึกประวัติการลบ (**Tombstone**) ไว้พร้อมประทับเวลาลบ (เช่น `2026-10-16...`) ทั้งในเครื่องและส่งขึ้น Google Drive
+        2. เมื่อผู้ใช้นำไฟล์ JSON Backup เก่าเข้าสู่ระบบ ข้อมูลวันที่ 1 ในไฟล์สำรองนั้นมีเวลาประทับเก่ากว่า หรือไม่มี `updatedAt`
+        3. หลังจากนำเข้าข้อมูลสำเร็จ ระบบ Auto-Sync กับ Google Drive ทำงานในอีก 2.5 วินาทีต่อมา และตรวจสอบพบว่า *"Tombstone ของวันที่ 1 มีเวลาใหม่กว่าข้อมูลวันที่ 1 ในเครื่อง"* กลไกซิงค์จึงสรุปว่าวันที่ 1 เป็นรายการที่ถูกลบไปแล้ว และทำการลบข้อมูลวันที่ 1 ทิ้งซ้ำอัตโนมัติ ทำให้ผู้ใช้เห็นว่าวันที่ 1 หายไปหลังนำเข้า
+        4. นอกจากนี้ หากปีในไฟล์ Backup เป็น ค.ศ. (`2026`) หรือประเภทตัวเลข/สตริงไม่ตรงกับระบบ ตัวกรอง `getDailyLogs` จะมองไม่เห็นข้อมูล
+      - **การแก้ไขและปรับปรุง:**
+        1. **Resurrect Timestamp (`db.js`):** ในฟังก์ชัน `restoreBackupData` ทุกรายการที่นำเข้าจาก Backup จะถูกอัปเดตเวลาประทับเป็นเวลาปัจจุบันทันที (`updatedAt = new Date().toISOString()`) เพื่อให้ข้อมูลที่กู้คืนมีสถานะใหม่กว่า Tombstone ในอดีตเสมอ
+        2. **Purge Tombstones (`db.js` & `googleDriveSync.js`):**
+           - ล้าง Tombstone ของทุกวันที่ถูกกู้คืนออกจาก LocalStorage ทันที
+           - ใน `googleDriveSync.js` เพิ่มฟังก์ชัน `removeTombstonesForLog` เพื่อล้าง Tombstone บน Google Drive ออกด้วย เมื่อพบว่ามีข้อมูลที่กู้คืนมาใหม่ ทำให้ข้อมูลวันที่ 1 ไม่ถูก Cloud ลบทิ้งอีกต่อไป
+        3. **ปี พ.ศ./ค.ศ. และ Type Robustness (`db.js`):** ปรับปรุง `getDailyLogs` และ `restoreBackupData` ให้แปลงปี พ.ศ. และ ค.ศ. อัตโนมัติ (เช่น 2026 ⇄ 2569) และแปลง Number/String อย่างยืดหยุ่น
+        4. **Auto-Align View (`otStore.js`):** เมื่อกู้คืนข้อมูลสำเร็จ ระบบจะปรับเปลี่ยนมุมมองเดือนและปี พ.ศ. บนหน้าจอให้ตรงกับเดือนของข้อมูลที่นำเข้ามาโดยอัตโนมัติ พร้อมสั่งซิงค์ขึ้น Cloud ทันที
+        5. **คอมไพล์และบิลด์ใหม่ครบทุกแพลตฟอร์ม 100%:**
+           - macOS: `OT Tracker.app`, `OT_Tracker_Setup.pkg`, `OT_Tracker_macOS.zip`
+           - Windows: `OT_Tracker_Setup.exe`, `OT_Tracker_Windows.zip`
+           - Android: ซิงค์ Assets ล่าสุดลงใน `android-app/app/src/main/assets/`
+
+
 
 
 

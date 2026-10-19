@@ -205,8 +205,8 @@
     panel.allowsMultipleSelection = parameters.allowsMultipleSelection;
     panel.canChooseDirectories = parameters.allowsDirectories;
     panel.canChooseFiles = YES;
-    panel.title = @"เลือกไฟล์รายงานการลงเวลา (HR_RP_003_TimeToWork.pdf)";
-    panel.allowedFileTypes = @[@"pdf"];
+    panel.title = @"เลือกไฟล์ (PDF หรือ JSON)";
+    panel.allowedFileTypes = nil;
 
     [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
         if (result == NSModalResponseOK) {
@@ -224,6 +224,18 @@
     [alert addButtonWithTitle:@"ตกลง"];
     [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse returnCode) {
         completionHandler();
+    }];
+}
+
+// WKUIDelegate: Handle JavaScript Confirm
+- (void)webView:(WKWebView *)webView runJavaScriptConfirmPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(BOOL result))completionHandler {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"ยืนยันการดำเนินการ";
+    alert.informativeText = message;
+    [alert addButtonWithTitle:@"ตกลง"];
+    [alert addButtonWithTitle:@"ยกเลิก"];
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse returnCode) {
+        completionHandler(returnCode == NSAlertFirstButtonReturn);
     }];
 }
 

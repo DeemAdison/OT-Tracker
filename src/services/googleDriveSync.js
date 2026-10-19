@@ -442,6 +442,31 @@ function getTombstoneTimeForLog(log, tombstones) {
   return Math.max(...timestamps.map(t => new Date(t).getTime()));
 }
 
+function removeTombstonesForLog(log, tombstones) {
+  if (!log || !tombstones) return;
+  const keysToRemove = [];
+  if (log.year && log.month && log.day) {
+    const y = Number(log.year);
+    const m = String(log.month).padStart(2, '0');
+    const d = String(log.day).padStart(2, '0');
+    keysToRemove.push(`${y}-${m}-${d}`);
+    const altY = y > 2400 ? y - 543 : y + 543;
+    keysToRemove.push(`${altY}-${m}-${d}`);
+    if (log.month >= 1 && log.month <= 12) {
+      keysToRemove.push(`${Number(log.day)} ${THAI_MONTHS[log.month - 1]} ${y}`);
+      keysToRemove.push(`${Number(log.day)} ${THAI_MONTHS[log.month - 1]} ${altY}`);
+    }
+  }
+  if (log.date) keysToRemove.push(log.date);
+  if (log.id) keysToRemove.push(log.id);
+
+  for (const k of keysToRemove) {
+    if (tombstones[k]) {
+      delete tombstones[k];
+    }
+  }
+}
+
 /**
  * Smart Conflict Resolution & Merge Algorithm
  * Combines local data and cloud data without losing any records
@@ -505,6 +530,12 @@ export function mergeDatasets(local, cloud) {
     }
     const key = getLogKey(log);
     logMap.set(key, log);
+
+    // If local log is alive and newer than tombstone, purge the obsolete tombstone!
+    if (tombstoneTime > 0 && logTime >= tombstoneTime) {
+      removeTombstonesForLog(log, mergedTombstones);
+      hasChanges = true;
+    }
   }
 
   // Merge cloud logs

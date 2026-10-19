@@ -683,7 +683,26 @@ export const useOtStore = defineStore('ot', {
         const result = await importDatabaseBackup(file);
         this.settings = await getSettings();
         this.presets = await getPresets();
+
+        // If the backup contains logs, align current view to the restored log's month/year
+        if (result.firstLog?.year && result.firstLog?.month) {
+          const lYear = Number(result.firstLog.year);
+          const lMonth = Number(result.firstLog.month);
+          if (lYear > 0 && lMonth >= 1 && lMonth <= 12) {
+            this.currentYear = lYear;
+            this.currentMonth = lMonth;
+            localStorage.setItem('ot_last_year', String(this.currentYear));
+            localStorage.setItem('ot_last_month', String(this.currentMonth));
+          }
+        }
+
         await this.loadCurrentMonthData();
+        // Immediately sync to Google Drive to propagate restored data and clear cloud tombstones
+        try {
+          await this.syncGoogleDrive(false);
+        } catch (e) {
+          console.warn('Sync after restore failed quietly:', e);
+        }
         return result;
       } finally {
         this.isLoading = false;
