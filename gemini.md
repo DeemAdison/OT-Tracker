@@ -812,6 +812,9 @@
         4. **ปรับปรุง `googleDriveSync.js`:** เพิ่มตัวดักจับ `window.Android?.startGoogleAuth` เชื่อมโยงกับ Native Android Bridge
         5. **ปรับปรุง UI และคำแนะนำ (`SettingsModal.vue`):** เปิดแสดงส่วนช่วยเหลือทันทีหากพบปัญหา พร้อมคำแนะนำสำหรับผู้ใช้งานผ่านเว็บเบราว์เซอร์บนวง LAN
         6. **อัปเดต Assets และแพ็กเกจทุกระบบ:** ซิงค์เว็บแอสเซทลงใน `android-app/app/src/main/assets/` และคอมไพล์ตัวติดตั้ง Desktop ครบถ้วน
+    - **แก้ไขข้อผิดพลาดการคอมไพล์ Android (Missing Intent Import in WebAppInterface.java):**
+      - **สาเหตุ:** ใน `WebAppInterface.java` มีการเรียกใช้ `new Intent(...)` ในเมธอด `openExternalUrl` แต่ขาดคำสั่ง `import android.content.Intent;` ทำให้ Gradle ใน GitHub Actions แจ้งเตือนข้อผิดพลาด `error: cannot find symbol class Intent`
+      - **การแก้ไข:** เพิ่ม `import android.content.Intent;` ใน `WebAppInterface.java` เรียบร้อย บิลด์ผ่านฉลุย 100%
 
 
 
