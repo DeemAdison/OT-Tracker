@@ -815,6 +815,26 @@
     - **แก้ไขข้อผิดพลาดการคอมไพล์ Android (Missing Intent Import in WebAppInterface.java):**
       - **สาเหตุ:** ใน `WebAppInterface.java` มีการเรียกใช้ `new Intent(...)` ในเมธอด `openExternalUrl` แต่ขาดคำสั่ง `import android.content.Intent;` ทำให้ Gradle ใน GitHub Actions แจ้งเตือนข้อผิดพลาด `error: cannot find symbol class Intent`
       - **การแก้ไข:** เพิ่ม `import android.content.Intent;` ใน `WebAppInterface.java` เรียบร้อย บิลด์ผ่านฉลุย 100%
+    - **แก้ไขปัญหาสลับวันหยุดกลับเป็นวันปกติไม่ได้ & ปรับปรุงระบบเซสชัน Google Drive (Holiday Toggle Fix & Session Management):**
+      - **1. ปัญหาสลับวันหยุดแล้วกดกลับเป็นวันปกติไม่ได้:**
+        - **สาเหตุที่ 1 (Google Drive Cloud Resurrection):** ใน `googleDriveSync.js` ฟังก์ชัน `mergeDatasets` รวมรายการ `customHolidays` แบบ Union โดยไม่ได้เช็ค Tombstone เมื่อผู้ใช้กดสลับเป็นวันปกติในเครื่อง ระบบลบวันหยุดออก แต่ Auto-sync รันแล้วเห็นว่าบน Cloud ยังมีอยู่ จึงดึงกลับมาใส่เครื่องใหม่ (คืนชีพวันหยุดอัตโนมัติ)
+        - **สาเหตุที่ 2 (PDF Scan Remark Override):** ใน `DailyLogModal.vue` มีโค้ดตรวจจับคำว่า "วันหยุด" ในหมายเหตุของ PDF สแกน (`scan?.remark?.includes('วันหยุด')`) ซึ่งไปทับค่า Override ที่ผู้ใช้ตั้งใจสลับเป็นวันปกติ
+        - **สาเหตุที่ 3 (Time Slot & Hours Normalization):** เมื่อสลับประเภทวัน เวลาเริ่มต้น-สิ้นสุดและชั่วโมงไม่ได้ถูกปรับให้เข้ากับประเภทวันใหม่ (เช่น วันปกติช่วง 08:30-16:30 คำนวณ OT ได้ 0 ชม.)
+        - **การแก้ไข:**
+          - เพิ่มระบบ **Holiday Tombstones (`recordHolidayTombstone`, `clearHolidayTombstone`, `getTombstoneTimeForHoliday`)** ใน `db.js` และ `googleDriveSync.js` เพื่อบันทึกประวัติการลบและป้องกันไม่ให้ Cloud นำวันหยุดที่ถูกลบมาชุบชีวิตอีกต่อไป
+          - ปรับปรุงตรรกะ `toggleDayType(day)` ใน `otStore.js`: สลับสถานะตรงข้ามกับค่าเริ่มต้นของวันนั้นอย่างแม่นยำ พร้อมปรับเวลาเริ่มต้น-สิ้นสุดและชั่วโมงของ Daily Log ให้อัตโนมัติ (วันหยุด: 08:30-16:30 น. สูงสุด 7 ชม., วันทำการปกติ: 16:30 น. เป็นต้นไป สูงสุด 4 ชม.)
+          - ใน `DailyLogModal.vue`: ปรับให้ยึดค่าที่ผู้ใช้กำหนดเอง (`isCustom`) เป็นลำดับแรกเสมอ และเมื่อผู้ใช้เปลี่ยนประเภทวันใน Modal จะบันทึกซิงค์ตรงกับหน้าปฏิทินทันที
+      - **2. ทำความเข้าใจและปรับปรุงอายุการเข้าสู่ระบบ Google (Google OAuth Token Lifecycle):**
+        - **ข้อเท็จจริงทางเทคนิค:** ตามมาตรฐานความปลอดภัยสากลของ Google OAuth 2.0 สำหรับ Client Application (Zero-Server Architecture โดยไม่ผ่านเซิร์ฟเวอร์คนกลาง) กำหนดให้ Access Token มีอายุสูงสุด **1 ชั่วโมง (3,600 วินาที)** เพื่อความปลอดภัยสูงสุดของข้อมูลบน Google Drive ส่วนตัวของผู้ใช้
+        - **ปัญหาเดิม:** เมื่อ Token หมดอายุ การทำ Background Auto-sync ใน Android สั่งเปิด System Browser ทันที ทำให้ผู้ใช้รู้สึกว่าระบบเด้งขัดจังหวะให้ล็อกอินใหม่บ่อยๆ
+        - **การปรับปรุงเพื่อประสบการณ์ใช้งานที่ราบรื่น (Seamless UX):**
+          - ปรับ `getValidAccessToken({ allowPrompt = false })`: Background Sync จะไม่เด้งเปิดเบราว์เซอร์กวนใจอีกต่อไป ข้อมูลทุกอย่างถูกเก็บไว้ในเครื่องอย่างปลอดภัย 100% ตามหลัก Local-First
+          - แถบเมนูด้านบน (`Navbar.vue`): ปุ่มก้อนเมฆจะแสดงสถานะจุดสีส้มกะพริบเมื่อเซสชันหมดอายุ และเมื่อผู้ใช้คลิกจะทำการต่ออายุเซสชันและซิงค์ข้อมูลให้ทันทีใน 1 คลิก
+          - ใน `SettingsModal.vue`: แสดงสถานะการเชื่อมต่อชัดเจน แม้เซสชันหมดอายุข้อมูลบัญชียังอยู่ครบ พร้อมปุ่ม "ต่ออายุและซิงค์" และคำอธิบายความปลอดภัย
+      - **3. อัปเดตและคอมไพล์แพ็กเกจทุกระบบเรียบร้อย:**
+        - macOS App: `OT Tracker.app`, `OT_Tracker_Setup.pkg`, `OT_Tracker_macOS.zip`
+        - Windows App: `OT_Tracker_Setup.exe`
+        - Android App: ซิงค์ Assets ล่าสุดลงใน `android-app/app/src/main/assets/`
 
 
 

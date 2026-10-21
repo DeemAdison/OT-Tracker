@@ -757,7 +757,17 @@ function openDirectAuthLink() {
                     <span class="text-sm font-bold text-slate-800 dark:text-white">
                       {{ store.cloudSync.user?.name || 'บัญชี Google' }}
                     </span>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center space-x-1">
+                    <span 
+                      v-if="store.cloudSync.isTokenExpired"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 flex items-center space-x-1"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      <span>เซสชันหมดอายุ (แตะซิงค์เพื่อต่ออายุ)</span>
+                    </span>
+                    <span 
+                      v-else
+                      class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center space-x-1"
+                    >
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                       <span>เชื่อมต่อแล้ว</span>
                     </span>
@@ -774,10 +784,13 @@ function openDirectAuthLink() {
                   @click="handleManualCloudSync"
                   :disabled="store.cloudSync.isSyncing || isSyncingCloud"
                   type="button"
-                  class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-semibold shadow-xs transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  :class="[
+                    'px-3 py-1.5 rounded-xl text-white text-xs font-semibold shadow-xs transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50',
+                    store.cloudSync.isTokenExpired ? 'bg-amber-600 hover:bg-amber-700 animate-pulse' : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                  ]"
                 >
                   <RefreshCw :class="['w-3.5 h-3.5', (store.cloudSync.isSyncing || isSyncingCloud) ? 'animate-spin' : '']" />
-                  <span>{{ (store.cloudSync.isSyncing || isSyncingCloud) ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลเดี๋ยวนี้' }}</span>
+                  <span>{{ (store.cloudSync.isSyncing || isSyncingCloud) ? 'กำลังซิงค์...' : (store.cloudSync.isTokenExpired ? 'ต่ออายุและซิงค์' : 'ซิงค์ข้อมูลเดี๋ยวนี้') }}</span>
                 </button>
                 <button
                   @click="handleGoogleDisconnect"
@@ -798,6 +811,14 @@ function openDirectAuthLink() {
               <span class="text-[11px] text-slate-400 dark:text-slate-500">
                 ตำแหน่งจัดเก็บ: Google Drive / AppData (ส่วนตัว)
               </span>
+            </div>
+
+            <!-- Security & Token Lifespan Note -->
+            <div class="p-2.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] text-slate-500 dark:text-slate-400 flex items-start space-x-2">
+              <span class="text-emerald-600 dark:text-emerald-400 shrink-0 font-bold">💡</span>
+              <p class="leading-relaxed">
+                ตามมาตรฐานความปลอดภัยระดับสากลของ Google OAuth 2.0 รหัสการเข้าถึง (Token) มีอายุ 1 ชั่วโมงเพื่อความปลอดภัยของข้อมูลส่วนตัว ทั้งนี้ <strong>ข้อมูลทั้งหมดจะถูกบันทึกไว้ในเครื่องอย่างปลอดภัย 100% เสมอ</strong> และเมื่อต้องการอัปเดตข้อมูลขึ้น Google Drive สามารถแตะปุ่ม <em>"ซิงค์ข้อมูลเดี๋ยวนี้"</em> หรือไอคอนก้อนเมฆที่แถบเมนูด้านบนเพื่อต่ออายุได้ในคลิกเดียวครับ
+              </p>
             </div>
           </div>
 

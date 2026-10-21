@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useToast } from 'vue-toastification';
 import { useOtStore } from '../stores/otStore';
 import { THAI_MONTHS } from '../services/pdfParser';
 import { 
@@ -21,6 +22,21 @@ import {
 
 const emit = defineEmits(['open-upload', 'open-reconcile', 'open-export', 'open-preview', 'open-settings']);
 const store = useOtStore();
+const toast = useToast();
+
+async function handleCloudClick() {
+  if (!store.cloudSync.isConnected) {
+    emit('open-settings', 'cloud');
+    return;
+  }
+  try {
+    const res = await store.syncGoogleDrive(true);
+    toast.success(res?.message || 'ซิงค์ข้อมูล Google Drive สำเร็จ');
+  } catch (err) {
+    console.error('Navbar cloud sync error:', err);
+    toast.error(err?.message || 'การซิงค์ข้อมูล Google Drive ขัดข้อง');
+  }
+}
 
 // Dynamic Year list (Supports past years and auto-expands into the future without limits)
 const thaiYears = computed(() => {
@@ -171,24 +187,33 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
 
           <!-- Cloud Sync Quick Status & Button -->
           <button 
-            @click="store.cloudSync.isConnected ? store.syncGoogleDrive(false) : emit('open-settings', 'cloud')"
+            @click="handleCloudClick"
             class="relative w-9 sm:w-10 h-9 sm:h-10 flex items-center justify-center rounded-xl transition touch-manipulation cursor-pointer active:scale-90"
             :class="[
               store.cloudSync.isConnected 
-                ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40' 
+                ? (store.cloudSync.isTokenExpired 
+                    ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40' 
+                    : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40')
                 : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
             ]"
             :title="store.cloudSync.isConnected 
-              ? (store.cloudSync.isSyncing ? 'กำลังซิงค์ข้อมูล Google Drive...' : 'ซิงค์กับ Google Drive แล้ว (คลิกเพื่อซิงค์ทันที)') 
+              ? (store.cloudSync.isSyncing 
+                  ? 'กำลังซิงค์ข้อมูล Google Drive...' 
+                  : (store.cloudSync.isTokenExpired 
+                      ? 'เซสชัน Google Drive หมดอายุ (คลิกเพื่อต่ออายุและซิงค์ทันที)' 
+                      : 'ซิงค์กับ Google Drive แล้ว (คลิกเพื่อซิงค์ทันที)')) 
               : 'เชื่อมต่อ Google Drive ส่วนตัว (คลิกเพื่อตั้งค่า)'"
           >
             <RefreshCw v-if="store.cloudSync.isSyncing" class="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400" />
             <Cloud v-else class="w-4 h-4" />
             
-            <!-- Green status dot when connected -->
+            <!-- Status dot: Amber if expired, Green if active -->
             <span 
               v-if="store.cloudSync.isConnected && !store.cloudSync.isSyncing"
-              class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900"
+              :class="[
+                'absolute top-2 right-2 w-1.5 h-1.5 rounded-full ring-2 ring-white dark:ring-slate-900',
+                store.cloudSync.isTokenExpired ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+              ]"
             ></span>
           </button>
 

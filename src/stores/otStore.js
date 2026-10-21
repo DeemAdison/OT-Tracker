@@ -16,6 +16,7 @@ import {
   saveCustomHoliday as dbSaveCustomHoliday,
   deleteCustomHoliday as dbDeleteCustomHoliday,
   recordTombstone,
+  recordHolidayTombstone,
   DEFAULT_SETTINGS
 } from '../services/db';
 import { parseAttendancePdf, THAI_MONTHS } from '../services/pdfParser';
@@ -34,7 +35,8 @@ import {
   setClientId,
   DEFAULT_CLIENT_ID,
   setManualAccessToken,
-  getDirectOAuthUrl
+  getDirectOAuthUrl,
+  isTokenExpired
 } from '../services/googleDriveSync';
 
 export const useOtStore = defineStore('ot', {
@@ -69,6 +71,7 @@ export const useOtStore = defineStore('ot', {
         isConnected: false,
         user: null,
         isSyncing: false,
+        isTokenExpired: false,
         lastSyncTime: null,
         error: null,
         autoSync: true,
@@ -419,6 +422,13 @@ export const useOtStore = defineStore('ot', {
     },
 
     async removeCustomHoliday(idOrDay) {
+      const target = this.customHolidays.find(h => h.id === idOrDay || Number(h.day) === Number(idOrDay));
+      if (target) {
+        recordHolidayTombstone(target);
+      } else {
+        recordHolidayTombstone({ year: this.currentYear, month: this.currentMonth, day: idOrDay, id: idOrDay });
+      }
+
       await dbDeleteCustomHoliday(idOrDay, this.currentYear, this.currentMonth);
       this.customHolidays = this.customHolidays.filter(h => h.id !== idOrDay && Number(h.day) !== Number(idOrDay));
       this.triggerAutoSync();
@@ -428,20 +438,46 @@ export const useOtStore = defineStore('ot', {
     async toggleDayType(day) {
       const targetDay = Number(day);
       const existingCustom = this.customHolidays.find(h => Number(h.day) === targetDay);
+      
+      const officialInfo = getThaiHoliday(this.currentYear, this.currentMonth, targetDay);
+      const weekend = isWeekend(this.currentYear, this.currentMonth, targetDay);
+      const isDefaultHoliday = Boolean(officialInfo || weekend);
+
       let willBeHoliday = false;
 
       if (existingCustom) {
-        // If already overridden, remove the override to revert to system default
+        // If already custom overridden, remove the override first
         await this.removeCustomHoliday(existingCustom.id);
-        // Check what it reverts back to
-        const info = this.getDayHolidayInfo(targetDay);
-        willBeHoliday = info?.isHoliday || false;
+        
+        // Revert target state: if existing custom was holiday, user wants it to be weekday!
+        // If reverting to default resulted in the same holiday status, force opposite custom override
+        if (existingCustom.isHoliday && isDefaultHoliday) {
+          // It was holiday, default is also holiday, user wants WEEKDAY!
+          willBeHoliday = false;
+          await this.addCustomHoliday({
+            day: targetDay,
+            year: this.currentYear,
+            month: this.currentMonth,
+            name: 'วันทำการปกติ (กำหนดเอง)',
+            isHoliday: false
+          });
+        } else if (!existingCustom.isHoliday && !isDefaultHoliday) {
+          // It was weekday, default is also weekday, user wants HOLIDAY!
+          willBeHoliday = true;
+          await this.addCustomHoliday({
+            day: targetDay,
+            year: this.currentYear,
+            month: this.currentMonth,
+            name: 'วันหยุดพิเศษ (กำหนดเอง)',
+            isHoliday: true
+          });
+        } else {
+          // Clean reversion to default state
+          willBeHoliday = isDefaultHoliday;
+        }
       } else {
-        // If not yet overridden, check current default status and flip it
-        const currentInfo = this.getDayHolidayInfo(targetDay);
-        const wasHoliday = currentInfo?.isHoliday || false;
-        willBeHoliday = !wasHoliday;
-
+        // No custom override yet: flip opposite to default
+        willBeHoliday = !isDefaultHoliday;
         await this.addCustomHoliday({
           day: targetDay,
           year: this.currentYear,
@@ -451,13 +487,39 @@ export const useOtStore = defineStore('ot', {
         });
       }
 
-      // If there is an existing log on this day, update its dayType and recalculate amount
+      // If there is an existing log on this day, update its dayType and normalize times/hours
       const log = this.logsByDay[targetDay];
       if (log) {
         const newDayType = willBeHoliday ? 'holiday' : 'weekday';
+        let newStartTime = log.startTime;
+        let newEndTime = log.endTime;
+        let newHours = log.hours;
+
+        if (newDayType === 'holiday') {
+          // Switching from weekday to holiday: standard holiday shift 08:30-16:30
+          if (newStartTime === '16:30' || !newStartTime) {
+            newStartTime = '08:30';
+            newEndTime = '16:30';
+            newHours = Math.min(7, Math.max(1, newHours || 7));
+          }
+        } else {
+          // Switching from holiday to weekday: standard weekday OT starts after 16:30
+          if (newStartTime === '08:30' || !newStartTime) {
+            newStartTime = '16:30';
+            const clampedH = Math.min(4, Math.max(1, newHours > 4 ? 4 : newHours));
+            newEndTime = `${16 + clampedH}:30`;
+            newHours = clampedH;
+          } else {
+            newHours = Math.min(4, newHours);
+          }
+        }
+
         await this.saveLog({
           ...log,
           dayType: newDayType,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          hours: newHours,
         });
       }
 
@@ -742,6 +804,7 @@ export const useOtStore = defineStore('ot', {
         this.cloudSync.autoSync = isAutoSyncEnabled();
         this.cloudSync.lastSyncTime = getLastSyncTime();
         this.cloudSync.clientId = getClientId();
+        this.cloudSync.isTokenExpired = isTokenExpired();
       } catch (e) {
         console.warn('Failed to init cloud sync state:', e);
       }
@@ -813,6 +876,7 @@ export const useOtStore = defineStore('ot', {
       try {
         const res = await syncWithGoogleDrive({ allowPrompt });
         this.cloudSync.lastSyncTime = res.lastSync;
+        this.cloudSync.isTokenExpired = false;
         // Refresh local store
         this.settings = await getSettings();
         this.presets = await getPresets();
@@ -820,6 +884,9 @@ export const useOtStore = defineStore('ot', {
         return res;
       } catch (err) {
         console.warn('Google Drive Sync error:', err);
+        if (err.message && err.message.includes('หมดอายุ')) {
+          this.cloudSync.isTokenExpired = true;
+        }
         this.cloudSync.error = err.message || 'การซิงค์ข้อมูลกับ Google Drive ขัดข้อง';
         throw err;
       } finally {

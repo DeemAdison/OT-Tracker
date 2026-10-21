@@ -44,6 +44,55 @@ export function clearTombstone(dateKey) {
   }
 }
 
+export function recordHolidayTombstone(holiday) {
+  if (!holiday) return;
+  const tombstones = getTombstones();
+  const now = new Date().toISOString();
+  
+  if (holiday.id) {
+    tombstones[`holiday_${holiday.id}`] = now;
+  }
+  if (holiday.year && holiday.month && holiday.day) {
+    const y = Number(holiday.year);
+    const m = String(holiday.month).padStart(2, '0');
+    const d = String(holiday.day).padStart(2, '0');
+    tombstones[`holiday_${y}-${m}-${d}`] = now;
+    const altY = y > 2400 ? y - 543 : y + 543;
+    tombstones[`holiday_${altY}-${m}-${d}`] = now;
+  }
+  if (holiday.date) {
+    tombstones[`holiday_${holiday.date}`] = now;
+  }
+  saveTombstones(tombstones);
+}
+
+export function clearHolidayTombstone(holiday) {
+  if (!holiday) return;
+  const tombstones = getTombstones();
+  const keysToRemove = [];
+  if (holiday.id) keysToRemove.push(`holiday_${holiday.id}`);
+  if (holiday.year && holiday.month && holiday.day) {
+    const y = Number(holiday.year);
+    const m = String(holiday.month).padStart(2, '0');
+    const d = String(holiday.day).padStart(2, '0');
+    keysToRemove.push(`holiday_${y}-${m}-${d}`);
+    const altY = y > 2400 ? y - 543 : y + 543;
+    keysToRemove.push(`holiday_${altY}-${m}-${d}`);
+  }
+  if (holiday.date) keysToRemove.push(`holiday_${holiday.date}`);
+  
+  let changed = false;
+  for (const k of keysToRemove) {
+    if (tombstones[k]) {
+      delete tombstones[k];
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveTombstones(tombstones);
+  }
+}
+
 let tauriDb = null;
 let isTauriEnv = false;
 
@@ -541,8 +590,13 @@ export async function saveCustomHoliday(holiday) {
     month: Number(holiday.month),
     day: Number(holiday.day),
     name: holiday.name || (holiday.isHoliday ? 'วันหยุดพิเศษ (กำหนดเอง)' : 'วันทำการปกติ (กำหนดเอง)'),
-    isHoliday: holiday.isHoliday !== undefined ? Boolean(holiday.isHoliday) : true
+    isHoliday: holiday.isHoliday !== undefined ? Boolean(holiday.isHoliday) : true,
+    createdAt: holiday.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
+
+  // Clear any tombstone so newly added holiday is respected
+  clearHolidayTombstone(item);
 
   if (isTauriEnv && tauriDb) {
     await tauriDb.execute(`
@@ -564,32 +618,40 @@ export async function saveCustomHoliday(holiday) {
 }
 
 export async function deleteCustomHoliday(idOrDay, year, month) {
-  if (isTauriEnv && tauriDb) {
-    if (typeof idOrDay === 'string' && idOrDay.startsWith('ch_')) {
-      await tauriDb.execute('DELETE FROM custom_holidays WHERE id = $1', [idOrDay]);
-    } else if (year && month) {
-      await tauriDb.execute('DELETE FROM custom_holidays WHERE day = $1 AND year = $2 AND month = $3', [Number(idOrDay), Number(year), Number(month)]);
-    } else {
-      await tauriDb.execute('DELETE FROM custom_holidays WHERE id = $1', [idOrDay]);
-    }
-    syncToNativeStorage();
-    return true;
-  }
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS);
   let list = raw ? JSON.parse(raw) : [];
-  list = list.filter(h => {
-    // If id matches, remove
-    if (h.id === idOrDay) return false;
-    // If day, year, and month match, remove
-    if (year && month && Number(h.year) === Number(year) && Number(h.month) === Number(month) && Number(h.day) === Number(idOrDay)) {
-      return false;
-    }
-    // If no year/month provided and day matches, remove
-    if (!year && !month && Number(h.day) === Number(idOrDay)) {
-      return false;
-    }
-    return true;
+
+  // Find all matching items to record tombstones for each
+  const toDelete = list.filter(h => {
+    if (h.id === idOrDay) return true;
+    if (year && month && Number(h.year) === Number(year) && Number(h.month) === Number(month) && Number(h.day) === Number(idOrDay)) return true;
+    if (!year && !month && Number(h.day) === Number(idOrDay)) return true;
+    return false;
   });
+
+  for (const h of toDelete) {
+    recordHolidayTombstone(h);
+  }
+
+  // Also record explicit tombstone for target date/day
+  if (year && month && idOrDay) {
+    recordHolidayTombstone({ year, month, day: idOrDay, id: idOrDay });
+  } else if (idOrDay) {
+    recordHolidayTombstone({ id: idOrDay });
+  }
+
+  if (isTauriEnv && tauriDb) {
+    if (typeof idOrDay === 'string' && (idOrDay.startsWith('ch_') || isNaN(Number(idOrDay)))) {
+      await tauriDb.execute('DELETE FROM custom_holidays WHERE id = $1', [idOrDay]);
+    } else if (year && month) {
+      await tauriDb.execute('DELETE FROM custom_holidays WHERE (day = $1 OR id = $4) AND year = $2 AND month = $3', [Number(idOrDay), Number(year), Number(month), String(idOrDay)]);
+    } else {
+      await tauriDb.execute('DELETE FROM custom_holidays WHERE id = $1 OR day = $2', [String(idOrDay), Number(idOrDay) || 0]);
+    }
+    syncToNativeStorage();
+  }
+
+  list = list.filter(h => !toDelete.includes(h) && h.id !== idOrDay && !(year && month && Number(h.year) === Number(year) && Number(h.month) === Number(month) && Number(h.day) === Number(idOrDay)));
   localStorage.setItem(LOCAL_STORAGE_KEY_CUSTOM_HOLIDAYS, JSON.stringify(list));
   syncToNativeStorage();
   return true;
@@ -846,8 +908,14 @@ export async function restoreBackupData(rawBackup) {
       month: Number(h.month),
       day: Number(h.day),
       name: h.name || '',
-      isHoliday: h.isHoliday !== undefined ? Boolean(h.isHoliday) : (h.is_holiday !== undefined ? Boolean(h.is_holiday) : true)
+      isHoliday: h.isHoliday !== undefined ? Boolean(h.isHoliday) : (h.is_holiday !== undefined ? Boolean(h.is_holiday) : true),
+      updatedAt: h.updatedAt || nowIso
     }));
+
+    // Clear conflicting holiday tombstones for freshly restored holidays
+    for (const h of customHolidays) {
+      clearHolidayTombstone(h);
+    }
 
     if (isTauriEnv && tauriDb) {
       await tauriDb.execute('DELETE FROM custom_holidays');

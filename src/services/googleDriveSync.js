@@ -288,6 +288,16 @@ export function disconnectGoogleDrive() {
 }
 
 /**
+ * Check if Google Access Token is currently expired
+ */
+export function isTokenExpired() {
+  const token = localStorage.getItem(KEY_ACCESS_TOKEN);
+  const expiresAt = Number(localStorage.getItem(KEY_TOKEN_EXPIRES_AT) || 0);
+  if (!token) return true;
+  return Date.now() >= expiresAt;
+}
+
+/**
  * Get currently valid access token or refresh if expired
  */
 export async function getValidAccessToken({ allowPrompt = true } = {}) {
@@ -298,15 +308,26 @@ export async function getValidAccessToken({ allowPrompt = true } = {}) {
     return token;
   }
 
-  // If expired or missing, try silent refresh or user prompt
-  if (allowPrompt || isGoogleConnected()) {
+  // When allowPrompt is FALSE (e.g. background sync or initial app launch):
+  // DO NOT launch native Android/macOS system browser to avoid disruptive interruptions!
+  if (!allowPrompt) {
+    const isNativeApp = typeof window !== 'undefined' && (Boolean(window.Android?.startGoogleAuth) || Boolean(window.webkit?.messageHandlers?.nativeGoogleAuth));
+    if (!isNativeApp) {
+      try {
+        return await requestGoogleAccessToken({ prompt: '' });
+      } catch (e) {
+        // Silent web refresh failed
+      }
+    }
+    throw new Error('เซสชัน Google Drive หมดอายุ (คลิกที่ก้อนเมฆเพื่อต่ออายุการเชื่อมต่อ)');
+  }
+
+  // When allowPrompt is TRUE (user explicitly tapped Sync or Connect button):
+  if (isGoogleConnected() || allowPrompt) {
     try {
       return await requestGoogleAccessToken({ prompt: '' });
     } catch (err) {
-      if (allowPrompt) {
-        return await requestGoogleAccessToken({ prompt: 'consent' });
-      }
-      throw err;
+      return await requestGoogleAccessToken({ prompt: 'consent' });
     }
   }
 
@@ -495,6 +516,46 @@ function removeTombstonesForLog(log, tombstones) {
   }
 }
 
+function getTombstoneTimeForHoliday(hol, tombstones) {
+  if (!hol || !tombstones) return 0;
+  const keysToCheck = [];
+  if (hol.year && hol.month && hol.day) {
+    const y = Number(hol.year);
+    const m = String(hol.month).padStart(2, '0');
+    const d = String(hol.day).padStart(2, '0');
+    keysToCheck.push(`holiday_${y}-${m}-${d}`);
+    const altY = y > 2400 ? y - 543 : y + 543;
+    keysToCheck.push(`holiday_${altY}-${m}-${d}`);
+  }
+  if (hol.date) keysToCheck.push(`holiday_${hol.date}`);
+  if (hol.id) keysToCheck.push(`holiday_${hol.id}`);
+
+  const timestamps = keysToCheck.map(k => tombstones[k]).filter(Boolean);
+  if (timestamps.length === 0) return 0;
+  return Math.max(...timestamps.map(t => new Date(t).getTime()));
+}
+
+function removeTombstonesForHoliday(hol, tombstones) {
+  if (!hol || !tombstones) return;
+  const keysToRemove = [];
+  if (hol.year && hol.month && hol.day) {
+    const y = Number(hol.year);
+    const m = String(hol.month).padStart(2, '0');
+    const d = String(hol.day).padStart(2, '0');
+    keysToRemove.push(`holiday_${y}-${m}-${d}`);
+    const altY = y > 2400 ? y - 543 : y + 543;
+    keysToRemove.push(`holiday_${altY}-${m}-${d}`);
+  }
+  if (hol.date) keysToRemove.push(`holiday_${hol.date}`);
+  if (hol.id) keysToRemove.push(`holiday_${hol.id}`);
+
+  for (const k of keysToRemove) {
+    if (tombstones[k]) {
+      delete tombstones[k];
+    }
+  }
+}
+
 /**
  * Smart Conflict Resolution & Merge Algorithm
  * Combines local data and cloud data without losing any records
@@ -621,13 +682,43 @@ export function mergeDatasets(local, cloud) {
   const getHolKey = (h) => h.date || `${h.year}-${String(h.month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`;
 
   for (const hol of (local.customHolidays || [])) {
+    const tombstoneTime = getTombstoneTimeForHoliday(hol, mergedTombstones);
+    const holTime = new Date(hol.updatedAt || hol.createdAt || '1970-01-01').getTime();
+    if (tombstoneTime > holTime) {
+      // Record was deleted by tombstone
+      hasChanges = true;
+      continue;
+    }
     holidayMap.set(getHolKey(hol), hol);
+
+    // If local holiday is alive and newer than tombstone, purge obsolete tombstone!
+    if (tombstoneTime > 0 && holTime >= tombstoneTime) {
+      removeTombstonesForHoliday(hol, mergedTombstones);
+      hasChanges = true;
+    }
   }
+
   for (const cHol of (cloud.customHolidays || [])) {
+    const tombstoneTime = getTombstoneTimeForHoliday(cHol, mergedTombstones);
+    const cTime = new Date(cHol.updatedAt || cHol.createdAt || '1970-01-01').getTime();
+
+    if (tombstoneTime > cTime) {
+      // Cloud holiday was deleted by tombstone -> DO NOT RESURRECT!
+      hasChanges = true;
+      continue;
+    }
+
     const key = getHolKey(cHol);
     if (!holidayMap.has(key)) {
       holidayMap.set(key, cHol);
       hasChanges = true;
+    } else {
+      const lHol = holidayMap.get(key);
+      const lTime = new Date(lHol.updatedAt || lHol.createdAt || '1970-01-01').getTime();
+      if (cTime > lTime) {
+        holidayMap.set(key, cHol);
+        hasChanges = true;
+      }
     }
   }
   merged.customHolidays = Array.from(holidayMap.values());

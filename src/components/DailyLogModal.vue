@@ -49,7 +49,12 @@ function populateForm(day) {
   } else {
     // Determine if day is a holiday from store (respects custom overrides)
     const dayInfo = store.getDayHolidayInfo(day);
-    const isDayHoliday = Boolean(dayInfo?.isHoliday || scan?.dayType === 'holiday' || scan?.remark?.includes('วันหยุด'));
+    let isDayHoliday = false;
+    if (dayInfo?.isCustom) {
+      isDayHoliday = Boolean(dayInfo.isHoliday);
+    } else {
+      isDayHoliday = Boolean(dayInfo?.isHoliday || scan?.dayType === 'holiday' || scan?.remark?.includes('วันหยุด'));
+    }
 
     let defaultStart = isDayHoliday ? '08:30' : '16:30';
     let defaultEnd = isDayHoliday ? '16:30' : '17:30';
@@ -99,11 +104,13 @@ const scanInfo = computed(() => store.scansByDay[props.day] || null);
 function handleDayTypeChange(type) {
   form.value.dayType = type;
   if (type === 'holiday') {
-    if (form.value.startTime === '16:30') form.value.startTime = '08:30';
-    if (form.value.endTime === '17:30' || form.value.endTime === '20:30') form.value.endTime = '16:30';
+    if (form.value.startTime === '16:30' || !form.value.startTime) form.value.startTime = '08:30';
+    if (form.value.endTime === '17:30' || form.value.endTime === '20:30' || !form.value.endTime) form.value.endTime = '16:30';
+    if (!form.value.hours || form.value.hours < 1) form.value.hours = 7;
   } else {
-    if (form.value.startTime === '08:30') form.value.startTime = '16:30';
-    if (form.value.endTime === '16:30') form.value.endTime = '17:30';
+    if (form.value.startTime === '08:30' || !form.value.startTime) form.value.startTime = '16:30';
+    if (form.value.endTime === '16:30' || !form.value.endTime) form.value.endTime = '17:30';
+    if (form.value.hours > 4) form.value.hours = 4;
   }
   calculateHours();
 }
@@ -291,8 +298,31 @@ function syncToScan() {
   }
 }
 
+async function syncCustomHolidayWithDayType() {
+  const isHoliday = form.value.dayType === 'holiday';
+  const dayInfo = store.getDayHolidayInfo(props.day);
+  const currentHolidayState = Boolean(dayInfo?.isHoliday);
+
+  if (isHoliday !== currentHolidayState) {
+    if (dayInfo?.isCustom) {
+      await store.removeCustomHoliday(dayInfo.overrideId || props.day);
+    }
+    const reverted = store.getDayHolidayInfo(props.day);
+    if (Boolean(reverted?.isHoliday) !== isHoliday) {
+      await store.addCustomHoliday({
+        day: props.day,
+        year: store.currentYear,
+        month: store.currentMonth,
+        name: isHoliday ? 'วันหยุดพิเศษ (กำหนดเอง)' : 'วันทำการปกติ (กำหนดเอง)',
+        isHoliday
+      });
+    }
+  }
+}
+
 async function handleSave() {
   try {
+    await syncCustomHolidayWithDayType();
     await store.saveLog({
       ...form.value,
       date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
@@ -308,6 +338,7 @@ async function handleSave() {
 // Fast continuous logging: Save & open Next Day
 async function handleSaveAndNext() {
   try {
+    await syncCustomHolidayWithDayType();
     await store.saveLog({
       ...form.value,
       date: `${props.day} ${THAI_MONTHS[store.currentMonth - 1]} ${store.currentYear}`,
