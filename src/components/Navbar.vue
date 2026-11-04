@@ -138,11 +138,12 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           v-if="!store.isCurrentSystemMonth"
           @click="store.goToCurrentMonth()"
           type="button"
-          class="hidden md:inline-flex items-center space-x-1 min-h-[38px] px-2.5 py-1.5 text-xs font-bold rounded-xl text-primary bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 transition shadow-2xs active:scale-95 touch-manipulation cursor-pointer"
+          class="inline-flex items-center space-x-1 min-h-[36px] sm:min-h-[38px] px-2 sm:px-2.5 py-1 text-xs font-bold rounded-xl text-primary bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 transition shadow-2xs active:scale-95 touch-manipulation cursor-pointer"
           title="สลับกลับมาที่เดือนและปีปัจจุบันตามนาฬิกาของเครื่อง"
         >
-          <Calendar class="w-3.5 h-3.5" />
-          <span>เดือนปัจจุบัน</span>
+          <Calendar class="w-3.5 h-3.5 shrink-0" />
+          <span class="hidden sm:inline">เดือนปัจจุบัน</span>
+          <span class="sm:hidden">ปัจจุบัน</span>
         </button>
 
         <!-- Action Buttons -->
@@ -260,13 +261,22 @@ const shortThaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
           @click="store.setMonth(idx + 1)"
           type="button"
           :class="[
-            'min-h-[34px] px-3 py-1 text-xs font-semibold rounded-xl transition whitespace-nowrap active:scale-95 touch-manipulation cursor-pointer select-none',
+            'min-h-[34px] px-3 py-1 text-xs font-semibold rounded-xl transition whitespace-nowrap active:scale-95 touch-manipulation cursor-pointer select-none relative',
             store.currentMonth === (idx + 1)
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
           ]"
         >
-          {{ shortM }}
+          <span>{{ shortM }}</span>
+          <!-- Dot indicator for system real-time current month -->
+          <span 
+            v-if="store.currentYear === store.systemToday.year && (idx + 1) === store.systemToday.month"
+            :class="[
+              'absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full',
+              store.currentMonth === (idx + 1) ? 'bg-white' : 'bg-primary animate-pulse'
+            ]"
+            title="เดือนปัจจุบันตามเวลาจริง"
+          ></span>
         </button>
       </div>
 

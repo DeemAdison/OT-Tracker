@@ -522,13 +522,13 @@ onUnmounted(() => {
                 type="button"
                 @click="applyQuickWeekdayHours(h)"
                 :class="[
-                  'min-h-[46px] py-2 px-1 sm:px-2 rounded-xl text-xs font-semibold border transition text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 touch-manipulation select-none',
+                  'min-h-[50px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center flex flex-col items-center justify-center cursor-pointer active:scale-95 touch-manipulation select-none',
                   form.hours === h && form.startTime === '16:30'
                     ? 'bg-primary text-white border-primary shadow-xs font-bold'
                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
                 ]"
               >
-                <span class="text-sm font-bold">{{ h }} ชม.</span>
+                <span class="text-xs sm:text-sm font-bold">{{ h }} ชม. ({{ h * (store.settings.rateWeekday || 50) }} บ.)</span>
                 <span class="text-[10px] opacity-80 font-normal">เลิก {{ 16 + h }}:30</span>
               </button>
             </div>
@@ -540,40 +540,40 @@ onUnmounted(() => {
                   type="button"
                   @click="applyHolidayShift('full')"
                   :class="[
-                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
+                    'min-h-[50px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none flex flex-col items-center justify-center',
                     form.hours === 7 && form.startTime === '08:30' && form.endTime === '16:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
                   ]"
                 >
-                  <span class="block font-bold">เต็มวัน 7 ชม.</span>
-                  <span class="text-[10px] opacity-80 block">08:30 - 16:30</span>
+                  <span class="font-bold text-xs sm:text-sm">เต็มวัน 7 ชม. ({{ 7 * (store.settings.rateHoliday || 60) }} บ.)</span>
+                  <span class="text-[10px] opacity-80">08:30 - 16:30</span>
                 </button>
                 <button
                   type="button"
                   @click="applyHolidayShift('morning')"
                   :class="[
-                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
+                    'min-h-[50px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none flex flex-col items-center justify-center',
                     form.hours === 3 && form.startTime === '08:30' && form.endTime === '11:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
                   ]"
                 >
-                  <span class="block font-bold">ช่วงเช้า 3 ชม.</span>
-                  <span class="text-[10px] opacity-80 block">08:30 - 11:30</span>
+                  <span class="font-bold text-xs sm:text-sm">ช่วงเช้า 3 ชม. ({{ 3 * (store.settings.rateHoliday || 60) }} บ.)</span>
+                  <span class="text-[10px] opacity-80">08:30 - 11:30</span>
                 </button>
                 <button
                   type="button"
                   @click="applyHolidayShift('afternoon')"
                   :class="[
-                    'min-h-[46px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
+                    'min-h-[50px] py-2 px-1 rounded-xl text-xs font-semibold border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none flex flex-col items-center justify-center',
                     form.hours === 3 && form.startTime === '13:30' && form.endTime === '16:30'
                       ? 'bg-primary text-white border-primary shadow-xs font-bold'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-primary/50'
                   ]"
                 >
-                  <span class="block font-bold">ช่วงบ่าย 3 ชม.</span>
-                  <span class="text-[10px] opacity-80 block">13:30 - 16:30</span>
+                  <span class="font-bold text-xs sm:text-sm">ช่วงบ่าย 3 ชม. ({{ 3 * (store.settings.rateHoliday || 60) }} บ.)</span>
+                  <span class="text-[10px] opacity-80">13:30 - 16:30</span>
                 </button>
               </div>
 
@@ -585,13 +585,14 @@ onUnmounted(() => {
                   type="button"
                   @click="applyQuickHolidayHours(h)"
                   :class="[
-                    'min-h-[38px] py-2 px-1 rounded-lg text-xs font-medium border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none',
+                    'min-h-[40px] py-1.5 px-1 rounded-lg text-xs font-medium border transition text-center cursor-pointer active:scale-95 touch-manipulation select-none flex items-center justify-center space-x-1',
                     form.hours === h
                       ? 'bg-primary text-white border-primary font-bold shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary/50'
                   ]"
                 >
                   <span class="font-bold">{{ h }} ชม.</span>
+                  <span class="text-[10px] opacity-75">({{ h * (store.settings.rateHoliday || 60) }} บ.)</span>
                 </button>
               </div>
             </div>
@@ -739,7 +740,12 @@ onUnmounted(() => {
               :key="preset.id"
               @click="applyPreset(preset.description)"
               type="button"
-              class="min-h-[34px] text-xs px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition active:scale-95 touch-manipulation select-none"
+              :class="[
+                'min-h-[34px] text-xs px-3 py-1.5 rounded-full border transition active:scale-95 touch-manipulation select-none cursor-pointer',
+                form.taskDesc === preset.description
+                  ? 'bg-primary text-white border-primary font-bold shadow-xs'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+              ]"
             >
               {{ preset.title }}
             </button>

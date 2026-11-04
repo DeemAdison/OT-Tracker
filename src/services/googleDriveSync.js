@@ -335,25 +335,46 @@ export async function getValidAccessToken({ allowPrompt = true } = {}) {
 }
 
 /**
+ * List all files in Google Drive appDataFolder (for disaster recovery inspection)
+ */
+export async function listAllCloudFiles(token) {
+  const query = encodeURIComponent(`trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size)&pageSize=50&orderBy=modifiedTime desc`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`ดึงรายการไฟล์บน Google Drive ไม่สำเร็จ (${res.status}): ${errText}`);
+  }
+  const result = await res.json();
+  return result.files || [];
+}
+
+/**
  * Search for existing backup file in Google Drive appDataFolder
+ * Prioritizes newest non-empty file
  */
 export async function findSyncFile(token) {
   const cachedFileId = localStorage.getItem(KEY_FILE_ID);
   if (cachedFileId) {
     // Verify cached file is still valid
     try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${cachedFileId}?fields=id,name,trashed,modifiedTime`, {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${cachedFileId}?fields=id,name,trashed,modifiedTime,size`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const file = await res.json();
-        if (!file.trashed) return file;
+        if (!file.trashed && Number(file.size) > 0) return file;
+        if (!file.trashed) {
+          // If cached file is empty (0 byte), do full query to check if better file exists
+        }
       }
     } catch (e) {}
   }
 
   const query = encodeURIComponent(`name='${SYNC_FILENAME}' and trashed=false`);
-  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size)&pageSize=1`;
+  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size)&pageSize=20&orderBy=modifiedTime desc`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -364,13 +385,61 @@ export async function findSyncFile(token) {
   }
 
   const result = await res.json();
-  const file = result.files && result.files.length > 0 ? result.files[0] : null;
-  if (file?.id) {
-    localStorage.setItem(KEY_FILE_ID, file.id);
+  const files = result.files || [];
+
+  if (files.length === 0) {
+    localStorage.removeItem(KEY_FILE_ID);
+    return null;
+  }
+
+  // Choose the best file: prefer file with size > 0, otherwise newest
+  const nonEmptyFile = files.find(f => Number(f.size) > 0);
+  const bestFile = nonEmptyFile || files[0];
+
+  if (bestFile?.id) {
+    localStorage.setItem(KEY_FILE_ID, bestFile.id);
   } else {
     localStorage.removeItem(KEY_FILE_ID);
   }
-  return file;
+  return bestFile;
+}
+
+/**
+ * Get revision history for sync file (Google Drive auto-stores up to 30 days of revisions)
+ */
+export async function getCloudRevisions(token, fileId) {
+  let targetFileId = fileId;
+  if (!targetFileId) {
+    const file = await findSyncFile(token);
+    targetFileId = file?.id;
+  }
+  if (!targetFileId) return [];
+
+  const url = `https://www.googleapis.com/drive/v3/files/${targetFileId}/revisions?fields=revisions(id,modifiedTime,size,keepForever,originalFilename)`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`ดึงประวัติเวอร์ชันบน Google Drive ไม่สำเร็จ (${res.status}): ${errText}`);
+  }
+  const result = await res.json();
+  const revisions = result.revisions || [];
+  return revisions.sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0));
+}
+
+/**
+ * Download specific cloud revision content
+ */
+export async function downloadCloudRevision(token, fileId, revisionId) {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}/revisions/${revisionId}?alt=media`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    throw new Error(`ดาวน์โหลดเวอร์ชันย้อนหลังไม่สำเร็จ (${res.status})`);
+  }
+  return await res.json();
 }
 
 /**
@@ -565,13 +634,35 @@ export function mergeDatasets(local, cloud) {
     return { merged: local, hasChanges: false };
   }
 
+  // Support array of logs directly or wrapped data
+  let normCloud = cloud;
+  if (Array.isArray(cloud)) {
+    normCloud = { dailyLogs: cloud };
+  } else if (cloud.data && typeof cloud.data === 'object' && !Array.isArray(cloud.data)) {
+    normCloud = { ...cloud.data, ...cloud };
+  }
+
+  const rawCloudLogs = normCloud.dailyLogs || normCloud.daily_logs || normCloud.logs || normCloud.ot_tracker_daily_logs || [];
+  const localLogs = local.dailyLogs || [];
+
+  // Normalize cloud logs
+  const cloudLogs = Array.isArray(rawCloudLogs) ? rawCloudLogs : [];
+  const cloudScans = normCloud.attendanceScans || normCloud.attendance_scans || normCloud.scans || [];
+  const cloudHolidays = normCloud.customHolidays || normCloud.custom_holidays || normCloud.holidays || [];
+  const cloudPresets = normCloud.presets || normCloud.task_presets || [];
+
+  // New Machine Onboarding Guard:
+  // If local machine is brand new (0 daily logs) and cloud has existing logs,
+  // DO NOT allow empty local machine to erase or ignore cloud data!
+  const isNewMachine = localLogs.length === 0 && cloudLogs.length > 0;
+
   const merged = {
     version: '1.0',
     app: 'OT_Tracker',
     exportedAt: new Date().toISOString(),
-    settings: { ...local.settings },
+    settings: { ...(local.settings || {}) },
     presets: [...(local.presets || [])],
-    dailyLogs: [...(local.dailyLogs || [])],
+    dailyLogs: [...localLogs],
     attendanceScans: [...(local.attendanceScans || [])],
     customHolidays: [...(local.customHolidays || [])],
   };
@@ -580,11 +671,12 @@ export function mergeDatasets(local, cloud) {
 
   // 1. Merge Settings
   const localSettings = local.settings || {};
-  const cloudSettings = cloud.settings || {};
+  const cloudSettings = normCloud.settings || normCloud.ot_tracker_settings || {};
   const localSetTime = new Date(localSettings.updatedAt || '1970-01-01').getTime();
   const cloudSetTime = new Date(cloudSettings.updatedAt || '1970-01-01').getTime();
 
-  if (cloudSetTime > localSetTime || (!localSettings.employeeName && cloudSettings.employeeName)) {
+  // If new machine or local has unconfigured settings, adopt cloud settings
+  if (isNewMachine || !localSettings.employeeName || (cloudSetTime > localSetTime && cloudSettings.employeeName)) {
     merged.settings = { ...localSettings, ...cloudSettings };
     hasChanges = true;
   } else {
@@ -595,8 +687,9 @@ export function mergeDatasets(local, cloud) {
   const logMap = new Map();
 
   // Merge tombstones from local and cloud (track deleted records)
-  const localTombstones = local.tombstones || {};
-  const cloudTombstones = cloud.tombstones || {};
+  // If new machine, ignore local tombstones so clean machine never deletes cloud logs
+  const localTombstones = isNewMachine ? {} : (local.tombstones || {});
+  const cloudTombstones = normCloud.tombstones || normCloud.ot_tracker_tombstones || {};
   const mergedTombstones = { ...cloudTombstones, ...localTombstones };
   for (const [key, ts] of Object.entries(cloudTombstones)) {
     if (mergedTombstones[key]) {
@@ -609,7 +702,7 @@ export function mergeDatasets(local, cloud) {
   }
 
   // Populate local logs, filtering out any deleted records
-  for (const log of (local.dailyLogs || [])) {
+  for (const log of localLogs) {
     const tombstoneTime = getTombstoneTimeForLog(log, mergedTombstones);
     const logTime = new Date(log.updatedAt || log.createdAt || '1970-01-01').getTime();
     if (tombstoneTime > logTime) {
@@ -628,8 +721,9 @@ export function mergeDatasets(local, cloud) {
   }
 
   // Merge cloud logs
-  for (const cLog of (cloud.dailyLogs || [])) {
-    const tombstoneTime = getTombstoneTimeForLog(cLog, mergedTombstones);
+  for (const cLog of cloudLogs) {
+    // If it's a new machine, never let obsolete tombstones suppress cloud logs!
+    const tombstoneTime = isNewMachine ? 0 : getTombstoneTimeForLog(cLog, mergedTombstones);
     const cTime = new Date(cLog.updatedAt || cLog.createdAt || '1970-01-01').getTime();
 
     if (tombstoneTime > cTime) {
@@ -658,6 +752,18 @@ export function mergeDatasets(local, cloud) {
       }
     }
   }
+
+  // Catastrophic Wipe Fail-Safe:
+  // If cloud had logs (> 0), but merged resulted in 0 logs:
+  // Fallback to cloud logs to guarantee NO DATA LOSS!
+  if (cloudLogs.length > 0 && logMap.size === 0) {
+    console.warn('Safety Guard Triggered: Merged dailyLogs was 0 while cloud had', cloudLogs.length, 'records. Falling back to cloud records!');
+    for (const cLog of cloudLogs) {
+      logMap.set(getLogKey(cLog), cLog);
+    }
+    hasChanges = true;
+  }
+
   merged.dailyLogs = Array.from(logMap.values());
   merged.tombstones = mergedTombstones;
 
@@ -668,7 +774,7 @@ export function mergeDatasets(local, cloud) {
   for (const scan of (local.attendanceScans || [])) {
     scanMap.set(getScanKey(scan), scan);
   }
-  for (const cScan of (cloud.attendanceScans || [])) {
+  for (const cScan of cloudScans) {
     const key = getScanKey(cScan);
     if (!scanMap.has(key)) {
       scanMap.set(key, cScan);
@@ -698,8 +804,8 @@ export function mergeDatasets(local, cloud) {
     }
   }
 
-  for (const cHol of (cloud.customHolidays || [])) {
-    const tombstoneTime = getTombstoneTimeForHoliday(cHol, mergedTombstones);
+  for (const cHol of cloudHolidays) {
+    const tombstoneTime = isNewMachine ? 0 : getTombstoneTimeForHoliday(cHol, mergedTombstones);
     const cTime = new Date(cHol.updatedAt || cHol.createdAt || '1970-01-01').getTime();
 
     if (tombstoneTime > cTime) {
@@ -725,7 +831,7 @@ export function mergeDatasets(local, cloud) {
 
   // 5. Merge Presets (Keyed by Title)
   const presetTitles = new Set((local.presets || []).map(p => p.title));
-  for (const cPreset of (cloud.presets || [])) {
+  for (const cPreset of cloudPresets) {
     if (!presetTitles.has(cPreset.title)) {
       merged.presets.push(cPreset);
       presetTitles.add(cPreset.title);
@@ -744,12 +850,27 @@ export function mergeDatasets(local, cloud) {
  * 4. Downloads & merges if exists, or uploads fresh if none
  * 5. Saves merged data to local DB and Google Drive
  */
-export async function syncWithGoogleDrive({ allowPrompt = false } = {}) {
+export async function syncWithGoogleDrive({ allowPrompt = false, forceUpload = false } = {}) {
   const token = await getValidAccessToken({ allowPrompt });
   const localBackup = await createBackupData();
 
   // Find existing file on Google Drive
-  const existingFile = await findSyncFile(token);
+  let existingFile = await findSyncFile(token);
+
+  // If no file found via quick check, but local has 0 records:
+  // Exhaustively search all files before blindly creating an empty file!
+  if (!existingFile && (localBackup.dailyLogs?.length || 0) === 0) {
+    try {
+      const allFiles = await listAllCloudFiles(token);
+      const matched = allFiles.find(f => f.name === SYNC_FILENAME);
+      if (matched) {
+        existingFile = matched;
+        localStorage.setItem(KEY_FILE_ID, matched.id);
+      }
+    } catch (e) {
+      console.warn('Exhaustive cloud file search failed:', e);
+    }
+  }
 
   if (!existingFile) {
     // Initial Upload: No remote file yet -> upload local dataset
@@ -770,6 +891,15 @@ export async function syncWithGoogleDrive({ allowPrompt = false } = {}) {
   const cloudBackup = await downloadSyncFile(token, existingFile.id);
   const { merged, hasChanges } = mergeDatasets(localBackup, cloudBackup);
 
+  // Safety Verification before overwrite:
+  const rawCloudLogs = cloudBackup.dailyLogs || cloudBackup.daily_logs || cloudBackup.logs || (cloudBackup.data && cloudBackup.data.dailyLogs) || [];
+  const cloudLogsCount = Array.isArray(rawCloudLogs) ? rawCloudLogs.length : 0;
+  const mergedLogsCount = (merged.dailyLogs || []).length;
+
+  if (cloudLogsCount > 0 && mergedLogsCount === 0 && !forceUpload) {
+    throw new Error(`ระบบตรวจพบความผิดปกติ: Google Drive มีข้อมูลบันทึก OT เดิม ${cloudLogsCount} รายการ แต่ข้อมูลที่จะส่งขึ้นไปว่างเปล่า ระบบจึงระงับการบันทึกทับเพื่อป้องกันข้อมูลสูญหาย (กรุณาใช้เมนูกู้คืนข้อมูลประวัติย้อนหลัง)`);
+  }
+
   // Apply merged state to local storage and SQLite
   await restoreBackupData(merged);
 
@@ -783,7 +913,7 @@ export async function syncWithGoogleDrive({ allowPrompt = false } = {}) {
     status: 'synced',
     lastSync: nowIso,
     hasChanges,
-    recordsSynced: merged.dailyLogs?.length || 0,
+    recordsSynced: mergedLogsCount,
     message: hasChanges ? 'ซิงค์และผสานข้อมูลล่าสุดเรียบร้อยแล้ว' : 'ข้อมูลบนคลาวด์และเครื่องตรงกันแล้ว'
   };
 }

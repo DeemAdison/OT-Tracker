@@ -31,7 +31,12 @@ import {
   AlertCircle,
   ExternalLink,
   ShieldCheck,
-  Check
+  Check,
+  History,
+  RotateCcw,
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -324,6 +329,97 @@ function openDirectAuthLink() {
     window.Android.openExternalUrl(url);
   } else {
     window.open(url, '_blank');
+  }
+}
+
+// ---------------- Disaster Recovery & Revision History ----------------
+const isLoadingRevisions = ref(false);
+const cloudRevisions = ref([]);
+const showRevisionsPanel = ref(false);
+const activeCloudFile = ref(null);
+const isRestoringRevision = ref(false);
+
+const showAllFilesPanel = ref(false);
+const allCloudFiles = ref([]);
+const isLoadingAllFiles = ref(false);
+
+function formatFileSize(bytes) {
+  if (!bytes || isNaN(bytes)) return '-';
+  const num = Number(bytes);
+  if (num < 1024) return `${num} B`;
+  if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+  return `${(num / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+async function handleFetchRevisions() {
+  isLoadingRevisions.value = true;
+  try {
+    const { file, revisions } = await store.fetchCloudRevisions();
+    activeCloudFile.value = file;
+    cloudRevisions.value = revisions;
+    showRevisionsPanel.value = true;
+    if (revisions.length === 0) {
+      toast.info('ยังไม่มีประวัติเวอร์ชันย้อนหลังบน Google Drive');
+    }
+  } catch (err) {
+    console.error('Fetch revisions error:', err);
+    toast.error(err.message || 'ไม่สามารถดึงประวัติเวอร์ชันได้ (โปรดตรวจสอบการเชื่อมต่อ)');
+  } finally {
+    isLoadingRevisions.value = false;
+  }
+}
+
+async function handleRestoreRevision(rev) {
+  const dateStr = formatThaiDate(rev.modifiedTime);
+  const sizeStr = formatFileSize(rev.size);
+  if (!confirm(`คุณต้องการกู้คืนข้อมูลจากเวอร์ชันเมื่อ\n"${dateStr}" (${sizeStr}) ใช่หรือไม่?\n\nข้อมูลในเครื่องจะถูกแทนที่ด้วยข้อมูลจากเวอร์ชันนี้ และปฏิทินจะนำทางไปยังเดือนที่มีข้อมูลทันที`)) {
+    return;
+  }
+  isRestoringRevision.value = true;
+  try {
+    const result = await store.restoreFromCloudRevision(rev.id, activeCloudFile.value?.id);
+    toast.success(`กู้คืนข้อมูลสำเร็จ (${result.logsCount} รายการบันทึก OT)`);
+    profileForm.value = { ...store.settings };
+    emit('close');
+  } catch (err) {
+    console.error('Restore revision error:', err);
+    toast.error(err.message || 'กู้คืนข้อมูลจากเวอร์ชันนี้ไม่สำเร็จ');
+  } finally {
+    isRestoringRevision.value = false;
+  }
+}
+
+async function handleFetchAllFiles() {
+  isLoadingAllFiles.value = true;
+  try {
+    const files = await store.fetchAllCloudFiles();
+    allCloudFiles.value = files;
+    showAllFilesPanel.value = true;
+    if (files.length === 0) {
+      toast.info('ไม่พบไฟล์ใน Google Drive AppData');
+    }
+  } catch (err) {
+    console.error('Fetch all files error:', err);
+    toast.error(err.message || 'ไม่สามารถดึงรายการไฟล์ได้');
+  } finally {
+    isLoadingAllFiles.value = false;
+  }
+}
+
+async function handleRestoreSpecificFile(file) {
+  const sizeStr = formatFileSize(file.size);
+  const dateStr = formatThaiDate(file.modifiedTime);
+  if (!confirm(`คุณต้องการกู้คืนข้อมูลจากไฟล์ "${file.name}"\nแก้ไขล่าสุด: ${dateStr} (${sizeStr}) ใช่หรือไม่?`)) {
+    return;
+  }
+  try {
+    const result = await store.restoreFromCloudFile(file.id);
+    toast.success(`กู้คืนข้อมูลสำเร็จ (${result.logsCount} รายการบันทึก OT)`);
+    profileForm.value = { ...store.settings };
+    emit('close');
+  } catch (err) {
+    console.error('Restore file error:', err);
+    toast.error(err.message || 'ไม่สามารถกู้คืนไฟล์นี้ได้');
   }
 }
 </script>
@@ -819,6 +915,118 @@ function openDirectAuthLink() {
               <p class="leading-relaxed">
                 ตามมาตรฐานความปลอดภัยระดับสากลของ Google OAuth 2.0 รหัสการเข้าถึง (Token) มีอายุ 1 ชั่วโมงเพื่อความปลอดภัยของข้อมูลส่วนตัว ทั้งนี้ <strong>ข้อมูลทั้งหมดจะถูกบันทึกไว้ในเครื่องอย่างปลอดภัย 100% เสมอ</strong> และเมื่อต้องการอัปเดตข้อมูลขึ้น Google Drive สามารถแตะปุ่ม <em>"ซิงค์ข้อมูลเดี๋ยวนี้"</em> หรือไอคอนก้อนเมฆที่แถบเมนูด้านบนเพื่อต่ออายุได้ในคลิกเดียวครับ
               </p>
+            </div>
+          </div>
+
+          <!-- ================= DISASTER RECOVERY & REVISION HISTORY ================= -->
+          <div v-if="store.cloudSync.isConnected" class="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/50 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <History class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span class="text-xs font-bold text-amber-950 dark:text-amber-200">
+                  เครื่องมือกู้คืนข้อมูลฉุกเฉิน (Google Drive Disaster Recovery)
+                </span>
+              </div>
+              <button
+                @click="handleFetchRevisions"
+                :disabled="isLoadingRevisions"
+                type="button"
+                class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-[11px] font-bold shadow-xs transition flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw :class="['w-3 h-3', isLoadingRevisions ? 'animate-spin' : '']" />
+                <span>{{ isLoadingRevisions ? 'กำลังดึงประวัติ...' : 'ดูประวัติย้อนหลัง (Revisions)' }}</span>
+              </button>
+            </div>
+
+            <p class="text-[11px] text-amber-900/80 dark:text-amber-300/80 leading-relaxed">
+              💡 <strong>ในกรณีย้ายเครื่อง หรือเผลอซิงค์หน้าว่างไปบันทึกทับ:</strong> Google Drive มีระบบเก็บประวัติเวอร์ชันย้อนหลัง (Revision History) ให้อัตโนมัติ คุณสามารถเลือกดึงเวอร์ชันก่อนหน้ากลับมาใช้งานได้ทันที 100%
+            </p>
+
+            <!-- Revisions List -->
+            <div v-if="showRevisionsPanel" class="space-y-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+              <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>ประวัติไฟล์สำรองบน Google Drive ({{ cloudRevisions.length }} รุ่น):</span>
+                <button
+                  @click="handleFetchAllFiles"
+                  :disabled="isLoadingAllFiles"
+                  type="button"
+                  class="text-amber-700 hover:underline cursor-pointer"
+                >
+                  {{ isLoadingAllFiles ? 'กำลังค้นหา...' : 'สแกนหาไฟล์สำรองอื่นๆ' }}
+                </button>
+              </div>
+
+              <div v-if="cloudRevisions.length === 0" class="p-3 text-center text-xs text-slate-400 bg-white/60 dark:bg-slate-800/60 rounded-xl">
+                ไม่พบประวัติเวอร์ชันย้อนหลัง
+              </div>
+
+              <div v-else class="space-y-1.5 max-h-56 overflow-y-auto">
+                <div
+                  v-for="(rev, idx) in cloudRevisions"
+                  :key="rev.id"
+                  class="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs hover:border-amber-300 transition"
+                >
+                  <div class="space-y-0.5">
+                    <div class="flex items-center space-x-2">
+                      <span class="font-bold text-slate-800 dark:text-slate-100">
+                        {{ formatThaiDate(rev.modifiedTime) }}
+                      </span>
+                      <span
+                        v-if="idx === 0"
+                        class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                      >
+                        เวอร์ชันล่าสุด
+                      </span>
+                      <span
+                        v-else
+                        class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                      >
+                        รุ่นก่อนหน้า #{{ idx }}
+                      </span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 block font-mono">
+                      ขนาด: {{ formatFileSize(rev.size) }} • ID: {{ rev.id.substring(0, 12) }}...
+                    </span>
+                  </div>
+
+                  <button
+                    @click="handleRestoreRevision(rev)"
+                    :disabled="isRestoringRevision"
+                    type="button"
+                    class="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-xs transition flex items-center space-x-1 cursor-pointer disabled:opacity-50 shrink-0"
+                    title="คลิกเพื่อกู้คืนข้อมูลจากเวอร์ชันนี้ลงเครื่องทันที"
+                  >
+                    <RotateCcw class="w-3 h-3" />
+                    <span>กู้คืนเวอร์ชันนี้</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- All Cloud Files Fallback List -->
+              <div v-if="showAllFilesPanel" class="mt-3 pt-2 border-t border-amber-200/40 space-y-1.5">
+                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                  ไฟล์ทั้งหมดใน Google Drive AppData:
+                </span>
+                <div
+                  v-for="f in allCloudFiles"
+                  :key="f.id"
+                  class="p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <span class="font-bold text-slate-800 dark:text-slate-200">{{ f.name }}</span>
+                    <span class="text-[10px] text-slate-400 block">
+                      {{ formatThaiDate(f.modifiedTime) }} ({{ formatFileSize(f.size) }})
+                    </span>
+                  </div>
+                  <button
+                    @click="handleRestoreSpecificFile(f)"
+                    type="button"
+                    class="px-2 py-1 text-[11px] rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
+                  >
+                    กู้คืนไฟล์นี้
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

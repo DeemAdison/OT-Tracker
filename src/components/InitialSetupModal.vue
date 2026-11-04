@@ -13,7 +13,10 @@ import {
   KeyRound, 
   ArrowRight,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Cloud,
+  FileJson,
+  RotateCcw
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -38,6 +41,49 @@ const form = ref({
 const isProcessingPdf = ref(false);
 const autoDetectedSuccess = ref(false);
 const errorMsg = ref('');
+
+// Migration & Restore state
+const isSyncingGoogle = ref(false);
+const isImportingJson = ref(false);
+const jsonFileInput = ref(null);
+
+async function handleGoogleRestore() {
+  isSyncingGoogle.value = true;
+  errorMsg.value = '';
+  try {
+    await store.loginGoogle();
+    toast.success('เชื่อมต่อและดึงข้อมูลเดิมจาก Google Drive สำเร็จแล้ว!');
+    emit('completed');
+  } catch (err) {
+    console.error('Google Restore in setup error:', err);
+    errorMsg.value = 'ไม่สามารถดึงข้อมูลจาก Google Drive ได้: ' + (err.message || 'โปรดตรวจสอบการเชื่อมต่อ');
+  } finally {
+    isSyncingGoogle.value = false;
+  }
+}
+
+function triggerJsonInput() {
+  if (jsonFileInput.value) jsonFileInput.value.click();
+}
+
+async function handleJsonFile(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  isImportingJson.value = true;
+  errorMsg.value = '';
+  try {
+    const result = await store.restoreData(file);
+    toast.success(`นำเข้าไฟล์สำรองสำเร็จ (${result.logsCount} รายการบันทึก OT)`);
+    emit('completed');
+  } catch (err) {
+    console.error('JSON import in setup error:', err);
+    errorMsg.value = 'นำเข้าไฟล์สำรองไม่สำเร็จ: ' + (err.message || 'รูปแบบไฟล์ไม่ถูกต้อง');
+  } finally {
+    isImportingJson.value = false;
+    if (jsonFileInput.value) jsonFileInput.value.value = '';
+  }
+}
 
 // Handle Auto-detect from PDF
 async function handlePdfUpload(e) {
@@ -103,6 +149,54 @@ async function handleSave() {
       <!-- Form Body -->
       <div class="p-8 space-y-6 overflow-y-auto flex-1">
         
+        <!-- New Device / Migration Banner: Restore from Cloud or JSON -->
+        <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center space-x-1.5">
+              <span>🔄 ย้ายเครื่องใหม่ / มีข้อมูลเดิมอยู่แล้วใช่หรือไม่?</span>
+            </span>
+          </div>
+          <p class="text-[11px] text-amber-800/90 dark:text-amber-300/80 leading-relaxed">
+            หากคุณเคยบันทึกข้อมูลไว้บนเครื่องอื่น สามารถดึงข้อมูลเดิมทั้งหมดกลับมาได้ทันที ไม่ต้องกรอกใหม่:
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <button
+              @click="handleGoogleRestore"
+              :disabled="isSyncingGoogle"
+              type="button"
+              class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-100/60 dark:hover:bg-slate-700 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Loader2 v-if="isSyncingGoogle" class="w-4 h-4 animate-spin text-amber-600" />
+              <Cloud v-else class="w-4 h-4 text-emerald-600" />
+              <span>{{ isSyncingGoogle ? 'กำลังดึงข้อมูล...' : 'ดึงข้อมูลจาก Google Drive' }}</span>
+            </button>
+
+            <button
+              @click="triggerJsonInput"
+              :disabled="isImportingJson"
+              type="button"
+              class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-100/60 dark:hover:bg-slate-700 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Loader2 v-if="isImportingJson" class="w-4 h-4 animate-spin text-amber-600" />
+              <FileJson v-else class="w-4 h-4 text-blue-600" />
+              <span>{{ isImportingJson ? 'กำลังนำเข้า...' : 'นำเข้าไฟล์สำรอง (.json)' }}</span>
+            </button>
+            <input 
+              ref="jsonFileInput" 
+              type="file" 
+              accept=".json,application/json,text/plain,*/*" 
+              class="hidden" 
+              @change="handleJsonFile" 
+            />
+          </div>
+        </div>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+          <span class="flex-shrink mx-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500">หรือตั้งค่าเริ่มต้นสำหรับผู้ใช้ใหม่</span>
+          <div class="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+        </div>
+
         <!-- Quick Option: Upload PDF to Auto-fill -->
         <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary transition text-center">
           <input 

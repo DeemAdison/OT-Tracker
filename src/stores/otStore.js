@@ -4,6 +4,7 @@ import {
   getSettings,
   saveSettings as dbSaveSettings,
   getDailyLogs,
+  getAllDailyLogs,
   saveDailyLog,
   deleteDailyLog,
   getPresets,
@@ -17,6 +18,7 @@ import {
   deleteCustomHoliday as dbDeleteCustomHoliday,
   recordTombstone,
   recordHolidayTombstone,
+  restoreBackupData,
   DEFAULT_SETTINGS
 } from '../services/db';
 import { parseAttendancePdf, THAI_MONTHS } from '../services/pdfParser';
@@ -36,7 +38,13 @@ import {
   DEFAULT_CLIENT_ID,
   setManualAccessToken,
   getDirectOAuthUrl,
-  isTokenExpired
+  isTokenExpired,
+  getValidAccessToken,
+  findSyncFile,
+  getCloudRevisions,
+  downloadCloudRevision,
+  listAllCloudFiles,
+  downloadSyncFile
 } from '../services/googleDriveSync';
 
 export const useOtStore = defineStore('ot', {
@@ -881,6 +889,12 @@ export const useOtStore = defineStore('ot', {
         this.settings = await getSettings();
         this.presets = await getPresets();
         await this.loadCurrentMonthData();
+
+        // Auto-navigate to latest month with data if current month has no logs
+        if (this.dailyLogs.length === 0) {
+          await this.alignToLatestMonthWithData();
+        }
+
         return res;
       } catch (err) {
         console.warn('Google Drive Sync error:', err);
@@ -891,6 +905,106 @@ export const useOtStore = defineStore('ot', {
         throw err;
       } finally {
         this.cloudSync.isSyncing = false;
+      }
+    },
+
+    async alignToLatestMonthWithData() {
+      try {
+        const allLogs = await getAllDailyLogs();
+        if (allLogs && allLogs.length > 0) {
+          const sorted = [...allLogs].sort((a, b) => {
+            const dateA = a.date || `${a.year}-${String(a.month).padStart(2, '0')}-${String(a.day).padStart(2, '0')}`;
+            const dateB = b.date || `${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}`;
+            return dateB.localeCompare(dateA);
+          });
+          const latest = sorted[0];
+          if (latest.year && latest.month && (Number(latest.year) !== this.currentYear || Number(latest.month) !== this.currentMonth)) {
+            this.currentYear = Number(latest.year);
+            this.currentMonth = Number(latest.month);
+            localStorage.setItem('ot_last_year', String(this.currentYear));
+            localStorage.setItem('ot_last_month', String(this.currentMonth));
+            await this.loadCurrentMonthData();
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to align month to latest data:', e);
+      }
+    },
+
+    // Disaster Recovery: Fetch Revision History from Google Drive
+    async fetchCloudRevisions() {
+      const token = await getValidAccessToken({ allowPrompt: true });
+      const activeFile = await findSyncFile(token);
+      if (!activeFile?.id) {
+        throw new Error('ไม่พบไฟล์สำรองบน Google Drive');
+      }
+      const revisions = await getCloudRevisions(token, activeFile.id);
+      return { file: activeFile, revisions };
+    },
+
+    // Disaster Recovery: Restore a specific Revision from Google Drive
+    async restoreFromCloudRevision(revisionId, fileId) {
+      this.isLoading = true;
+      try {
+        const token = await getValidAccessToken({ allowPrompt: true });
+        const targetFileId = fileId || (await findSyncFile(token))?.id;
+        if (!targetFileId) throw new Error('ไม่พบรหัสไฟล์บน Google Drive');
+
+        const revisionData = await downloadCloudRevision(token, targetFileId, revisionId);
+        const result = await restoreBackupData(revisionData);
+
+        this.settings = await getSettings();
+        this.presets = await getPresets();
+        await this.loadCurrentMonthData();
+
+        if (this.dailyLogs.length === 0) {
+          await this.alignToLatestMonthWithData();
+        }
+
+        // Immediately sync restored version back to Google Drive to ensure cloud is in sync
+        try {
+          await this.syncGoogleDrive(false);
+        } catch (e) {
+          console.warn('Sync after revision restore failed quietly:', e);
+        }
+
+        return result;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    // Disaster Recovery: List all files in Google Drive appDataFolder
+    async fetchAllCloudFiles() {
+      const token = await getValidAccessToken({ allowPrompt: true });
+      return await listAllCloudFiles(token);
+    },
+
+    // Disaster Recovery: Restore a specific File from Google Drive
+    async restoreFromCloudFile(fileId) {
+      this.isLoading = true;
+      try {
+        const token = await getValidAccessToken({ allowPrompt: true });
+        const fileData = await downloadSyncFile(token, fileId);
+        const result = await restoreBackupData(fileData);
+
+        this.settings = await getSettings();
+        this.presets = await getPresets();
+        await this.loadCurrentMonthData();
+
+        if (this.dailyLogs.length === 0) {
+          await this.alignToLatestMonthWithData();
+        }
+
+        try {
+          await this.syncGoogleDrive(false);
+        } catch (e) {
+          console.warn('Sync after file restore failed quietly:', e);
+        }
+
+        return result;
+      } finally {
+        this.isLoading = false;
       }
     },
 
